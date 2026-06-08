@@ -1,0 +1,186 @@
+
+{
+  "entities": {
+    "Product": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Product",
+      "type": "object",
+      "description": "Represents a product with its core, unchanging details.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the product."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of the product (e.g., kg, piece)."
+        },
+        "partyName": {
+          "type": "string",
+          "description": "Name of the department associated with the product."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the product."
+        }
+      },
+      "required": [
+        "name",
+        "unit",
+        "partyName",
+        "category"
+      ]
+    },
+    "Rate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Rate",
+      "type": "object",
+      "description": "Represents a rate entry for a product at a specific point in time.",
+      "properties": {
+        "rate": {
+          "type": "number",
+          "description": "The rate of the product."
+        },
+        "gst": {
+          "type": "number",
+          "description": "GST percentage applicable at the time of this rate."
+        },
+        "pageNo": {
+          "type": "number",
+          "description": "Page number where this rate is recorded."
+        },
+        "billDate": {
+          "type": "string",
+          "description": "Date of the bill for this rate.",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the rate was recorded.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "rate",
+        "gst",
+        "pageNo",
+        "billDate",
+        "createdAt"
+      ]
+    },
+    "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Order",
+      "type": "object",
+      "description": "Represents a customer order containing multiple products.",
+      "properties": {
+        "partyName": {
+          "type": "string",
+          "description": "Name of the department placing the order."
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "Date the order was placed.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "completed", "cancelled"],
+          "description": "The current status of the order."
+        },
+        "totalAmount": {
+            "type": "number",
+            "description": "The calculated total amount for the order."
+        },
+        "createdAt": {
+            "type": "string",
+            "description": "Timestamp when the order was created.",
+            "format": "date-time"
+        }
+      },
+      "required": [
+        "partyName",
+        "orderDate",
+        "status",
+        "totalAmount",
+        "createdAt"
+      ]
+    },
+    "OrderItem": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "OrderItem",
+        "type": "object",
+        "description": "Represents a single item within an order.",
+        "properties": {
+            "productId": {
+                "type": "string",
+                "description": "The ID of the referenced product."
+            },
+            "productName": {
+                "type": "string",
+                "description": "Denormalized name of the product for display."
+            },
+            "quantity": {
+                "type": "number",
+                "description": "The quantity of the product ordered."
+            },
+            "unit": {
+                "type": "string",
+                "description": "Denormalized unit of the product."
+            },
+            "rate": {
+                "type": "number",
+                "description": "The base rate of the product at the time of order."
+            },
+            "gst": {
+                "type": "number",
+                "description": "The GST percentage of the product at the time of order."
+            },
+            "status": {
+                "type": "string",
+                "enum": ["pending", "received", "dispatched", "cancelled"],
+                "description": "The fulfillment status of the individual order item."
+            }
+        },
+        "required": [
+            "productId",
+            "productName",
+            "quantity",
+            "unit",
+            "rate",
+            "gst",
+            "status"
+        ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "google.com",
+      "password"
+    ]
+  },
+  "firestore": {
+      "collections": {
+          "products": {
+            "schema": { "$ref": "#/entities/Product" },
+            "description": "Stores product documents.",
+            "subcollections": {
+              "rates": {
+                "schema": { "$ref": "#/entities/Rate" },
+                "description": "Stores the complete rate history for a product."
+              }
+            }
+          },
+          "orders": {
+            "schema": { "$ref": "#/entities/Order" },
+            "description": "Stores customer order documents.",
+            "subcollections": {
+              "items": {
+                "schema": { "$ref": "#/entities/OrderItem" },
+                "description": "Stores the items for a specific order."
+              }
+            }
+          }
+      }
+  }
+}
