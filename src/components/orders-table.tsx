@@ -9,7 +9,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Plus, Trash2, History, Info, Filter, X, Edit, Printer, ArrowUpDown, Calendar } from 'lucide-react';
+import { Plus, Trash2, History, Info, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
 import type { OrderItem, Product, OrderWithItems, DeliveryRecord } from '@/lib/types';
@@ -210,6 +210,8 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
   const [sourceFilter, setSourceFilter] = React.useState<string>('all');
   const [deptFilter, setDeptFilter] = React.useState<string>('all');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
+  const [startDate, setStartDate] = React.useState<string>('');
+  const [endDate, setEndDate] = React.useState<string>('');
   const [sortBy, setSortBy] = React.useState<string>('date-desc');
   
   const [isOrderFormOpen, setIsOrderFormOpen] = React.useState(false);
@@ -242,7 +244,14 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
             const searchStr = `${order.partyName} ${order.sourceLocation} ${order.pageNo || ''} ${itemNames}`.toLowerCase();
             const matchesGlobal = !globalFilter || searchStr.includes(globalFilter.toLowerCase());
 
-            return matchesSource && matchesDept && matchesGlobal;
+            // Date Range Filter
+            const orderDateTime = safeToDate(order.orderDate).getTime();
+            const start = startDate ? new Date(startDate).getTime() : -Infinity;
+            // Set end to end of day (adding 23:59:59 worth of milliseconds)
+            const end = endDate ? new Date(endDate).getTime() + 86399999 : Infinity;
+            const matchesDateRange = orderDateTime >= start && orderDateTime <= end;
+
+            return matchesSource && matchesDept && matchesGlobal && matchesDateRange;
         });
 
     // Apply Sorting
@@ -268,7 +277,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
     });
 
     return result;
-  }, [allOrders, sourceFilter, deptFilter, statusFilter, globalFilter, sortBy]);
+  }, [allOrders, sourceFilter, deptFilter, statusFilter, globalFilter, sortBy, startDate, endDate]);
 
   const columns: ColumnDef<OrderWithItems>[] = React.useMemo(() => [
     { id: 'serialNumber', header: 'S. No.' },
@@ -303,7 +312,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <CardTitle>Orders & Supply Tracking</CardTitle>
-                    <CardDescription>Filter by Source or Department to manage Trust demands.</CardDescription>
+                    <CardDescription>Filter by Source, Department, or Date to manage Trust demands.</CardDescription>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <PrintPendingSummary orders={filteredOrders} source={sourceFilter} />
@@ -315,90 +324,118 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
 
             <Separator className="my-4" />
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 no-print">
-                <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Search</Label>
-                    <Input
-                        placeholder="Dept, Page, or Item..."
-                        value={globalFilter}
-                        onChange={(event) => setGlobalFilter(event.target.value)}
-                        className="h-9"
-                    />
+            <div className="space-y-4 no-print">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                    <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Search</Label>
+                        <Input
+                            placeholder="Dept, Page, or Item..."
+                            value={globalFilter}
+                            onChange={(event) => setGlobalFilter(event.target.value)}
+                            className="h-9"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Source Hub</Label>
+                        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                            <SelectTrigger className="h-9">
+                                <SelectValue placeholder="All Locations" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Locations</SelectItem>
+                                {uniqueSources.map(loc => (
+                                    <SelectItem key={loc} value={loc!}>{loc}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Department</Label>
+                        <Select value={deptFilter} onValueChange={setDeptFilter}>
+                            <SelectTrigger className="h-9">
+                                <SelectValue placeholder="All Departments" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Departments</SelectItem>
+                                {uniqueDepts.map(dept => (
+                                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Status</Label>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Any Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Any Status</SelectItem>
+                                <SelectItem value="pending">Pending</SelectItem>
+                                <SelectItem value="received">Received</SelectItem>
+                                <SelectItem value="dispatched">Dispatched</SelectItem>
+                                <SelectItem value="cancelled">Cancelled</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                            <ArrowUpDown className="h-2 w-2" /> Sort List By
+                        </Label>
+                        <Select value={sortBy} onValueChange={setSortBy}>
+                            <SelectTrigger className="h-9 font-semibold text-blue-700 border-blue-200 bg-blue-50/50">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="date-desc">Demand Date (Newest)</SelectItem>
+                                <SelectItem value="date-asc">Demand Date (Oldest)</SelectItem>
+                                <SelectItem value="mail-desc">Mail Date (Newest)</SelectItem>
+                                <SelectItem value="mail-asc">Mail Date (Oldest)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
-                <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Source Hub</Label>
-                    <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                        <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Locations" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Locations</SelectItem>
-                            {uniqueSources.map(loc => (
-                                <SelectItem key={loc} value={loc!}>{loc}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Department</Label>
-                    <Select value={deptFilter} onValueChange={setDeptFilter}>
-                        <SelectTrigger className="h-9">
-                            <SelectValue placeholder="All Departments" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Departments</SelectItem>
-                            {uniqueDepts.map(dept => (
-                                <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Status</Label>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Any Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Any Status</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="received">Received</SelectItem>
-                            <SelectItem value="dispatched">Dispatched</SelectItem>
-                            <SelectItem value="cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
-                        <ArrowUpDown className="h-2 w-2" /> Sort List By
-                    </Label>
-                    <Select value={sortBy} onValueChange={setSortBy}>
-                        <SelectTrigger className="h-9 font-semibold text-blue-700 border-blue-200 bg-blue-50/50">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="date-desc">Demand Date (Newest)</SelectItem>
-                            <SelectItem value="date-asc">Demand Date (Oldest)</SelectItem>
-                            <SelectItem value="mail-desc">Mail Date (Newest)</SelectItem>
-                            <SelectItem value="mail-asc">Mail Date (Oldest)</SelectItem>
-                        </SelectContent>
-                    </Select>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-muted/20 p-3 rounded-lg border border-dashed">
+                    <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                            <CalendarIcon className="h-2 w-2" /> From Date
+                        </Label>
+                        <Input 
+                            type="date" 
+                            value={startDate} 
+                            onChange={(e) => setStartDate(e.target.value)} 
+                            className="h-9 bg-background"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                            <CalendarIcon className="h-2 w-2" /> To Date
+                        </Label>
+                        <Input 
+                            type="date" 
+                            value={endDate} 
+                            onChange={(e) => setEndDate(e.target.value)} 
+                            className="h-9 bg-background"
+                        />
+                    </div>
+                    <div className="md:col-span-2 flex items-end justify-end">
+                        {(sourceFilter !== 'all' || deptFilter !== 'all' || statusFilter !== 'all' || globalFilter || startDate || endDate) && (
+                            <Button variant="ghost" size="sm" onClick={() => {
+                                setSourceFilter('all');
+                                setDeptFilter('all');
+                                setStatusFilter('all');
+                                setGlobalFilter('');
+                                setStartDate('');
+                                setEndDate('');
+                                setSortBy('date-desc');
+                            }} className="h-9 text-xs text-muted-foreground hover:text-destructive">
+                                <X className="mr-1 h-3 w-3" /> Clear Filters & Date Range
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
-            
-            {(sourceFilter !== 'all' || deptFilter !== 'all' || statusFilter !== 'all' || globalFilter) && (
-                <div className="flex justify-end mt-2 no-print">
-                    <Button variant="ghost" size="sm" onClick={() => {
-                        setSourceFilter('all');
-                        setDeptFilter('all');
-                        setStatusFilter('all');
-                        setGlobalFilter('');
-                        setSortBy('date-desc');
-                    }} className="h-7 text-xs text-muted-foreground">
-                        <X className="mr-1 h-3 w-3" /> Clear Filters & Reset Sort
-                    </Button>
-                </div>
-            )}
           </CardHeader>
           <CardContent>
               <div className="rounded-md border overflow-x-auto">
@@ -544,7 +581,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                           ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                                    No orders found. Try adjusting your filters.
+                                    No orders found. Try adjusting your filters or date range.
                                 </TableCell>
                             </TableRow>
                           )}
