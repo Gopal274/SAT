@@ -10,7 +10,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Plus, Trash2, History, Info, Filter, X, Edit } from 'lucide-react';
+import { Plus, Trash2, History, Info, Filter, X, Edit, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 
 import type { OrderItem, Product, OrderWithItems, DeliveryRecord } from '@/lib/types';
@@ -34,7 +34,7 @@ import {
   CardHeader,
   CardTitle,
 } from './ui/card';
-import { OrderFormDialog, DeleteOrderDialog, PrintOrderSlip } from './order-forms';
+import { OrderFormDialog, DeleteOrderDialog, PrintOrderSlip, PrintPendingSummary } from './order-forms';
 import {
   Select,
   SelectContent,
@@ -279,9 +279,12 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                     <CardTitle>Orders & Supply Tracking</CardTitle>
                     <CardDescription>Filter by Source or Department to manage Trust demands.</CardDescription>
                 </div>
-                <Button onClick={() => { setEditingOrder(null); setIsOrderFormOpen(true); }}>
-                    <Plus className="mr-2 h-4 w-4" /> Create Order
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <PrintPendingSummary orders={filteredOrders} source={sourceFilter} />
+                    <Button onClick={() => { setEditingOrder(null); setIsOrderFormOpen(true); }}>
+                        <Plus className="mr-2 h-4 w-4" /> Create Order
+                    </Button>
+                </div>
             </div>
 
             <Separator className="my-4" />

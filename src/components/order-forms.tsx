@@ -50,8 +50,9 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
   
   const handleProductNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
+    // Context is passed to the form to have access to all products for auto-filling
     const allProducts = (control as any)._options.context as Product[];
-    const product = allProducts.find(p => p.name.toLowerCase() === newName.toLowerCase());
+    const product = allProducts?.find(p => p.name.toLowerCase() === newName.toLowerCase());
 
     if (product) {
         setValue(`items.${index}.productId`, product.id);
@@ -69,7 +70,7 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
                 name={`items.${index}.productName`}
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="text-xs">Product Name</FormLabel>
+                        <FormLabel className="text-xs text-muted-foreground">Product Name</FormLabel>
                         <FormControl>
                             <Input 
                                 {...field}
@@ -79,6 +80,7 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
                                 }}
                                 placeholder="Start typing..."
                                 list={`product-suggestions-${index}`}
+                                className="h-8"
                             />
                         </FormControl>
                         <datalist id={`product-suggestions-${index}`}>
@@ -97,9 +99,9 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
                 name={`items.${index}.unit`}
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="text-xs">Unit</FormLabel>
+                        <FormLabel className="text-xs text-muted-foreground">Unit</FormLabel>
                         <FormControl>
-                            <Input placeholder="kg/pc" {...field} />
+                            <Input placeholder="kg/pc" {...field} className="h-8" />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -112,9 +114,9 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
                 name={`items.${index}.quantity`}
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="text-xs">Quantity</FormLabel>
+                        <FormLabel className="text-xs text-muted-foreground">Qty</FormLabel>
                         <FormControl>
-                            <Input type="number" step="any" {...field} />
+                            <Input type="number" step="any" {...field} className="h-8" />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -127,9 +129,9 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
                 name={`items.${index}.remark`}
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="text-xs">Remark</FormLabel>
+                        <FormLabel className="text-xs text-muted-foreground">Remark</FormLabel>
                         <FormControl>
-                            <Input placeholder="Note..." {...field} />
+                            <Input placeholder="Note..." {...field} className="h-8" />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -142,7 +144,7 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive"
                 onClick={() => remove(index)}
             >
                 <Trash2 className="h-4 w-4" />
@@ -256,7 +258,7 @@ export function OrderFormDialog({
                     <DialogHeader>
                         <DialogTitle>{isEditing ? 'Edit Order' : 'Create New Order'}</DialogTitle>
                         <DialogDescription>
-                            Enter department and required items. Remarks are optional.
+                            Enter department and required items. Unit will auto-fill for known products.
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto px-1">
@@ -346,7 +348,7 @@ export function OrderFormDialog({
 
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <h3 className="font-semibold">Required Items</h3>
+                                <h3 className="font-semibold text-lg">Required Items</h3>
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -357,7 +359,7 @@ export function OrderFormDialog({
                                     Add Another Item
                                 </Button>
                             </div>
-                            <ScrollArea className="h-[45vh] pr-4 border rounded-lg p-2">
+                            <ScrollArea className="h-[40vh] pr-4 border rounded-lg p-2 bg-muted/5">
                                 <div className="space-y-3">
                                     {fields.map((field, index) => (
                                         <OrderItemRow key={field.id} index={index} remove={remove} productOptions={productOptions} />
@@ -509,3 +511,108 @@ export function PrintOrderSlip({ order }: { order: OrderWithItems }) {
         </>
     );
 }
+
+export function PrintPendingSummary({ orders, source }: { orders: OrderWithItems[], source: string }) {
+    const printRef = React.useRef<HTMLDivElement>(null);
+
+    const pendingItems = React.useMemo(() => {
+        const items: Array<{ productName: string; unit: string; pendingQty: number; depts: string[] }> = [];
+        
+        orders.forEach(order => {
+            order.items.forEach(item => {
+                const pending = Math.max(0, item.quantity - (item.receivedQuantity || 0));
+                if (pending > 0 && item.status !== 'cancelled') {
+                    const existing = items.find(i => i.productName.toLowerCase() === item.productName.toLowerCase() && i.unit.toLowerCase() === item.unit.toLowerCase());
+                    if (existing) {
+                        existing.pendingQty += pending;
+                        if (!existing.depts.includes(order.partyName)) {
+                            existing.depts.push(order.partyName);
+                        }
+                    } else {
+                        items.push({
+                            productName: item.productName,
+                            unit: item.unit,
+                            pendingQty: pending,
+                            depts: [order.partyName]
+                        });
+                    }
+                }
+            });
+        });
+        
+        return items.sort((a, b) => a.productName.localeCompare(b.productName));
+    }, [orders]);
+
+    const handlePrint = () => {
+        const content = printRef.current?.innerHTML;
+        const win = window.open('', '', 'height=700,width=900');
+        if (!win) return;
+        
+        win.document.write(`
+            <html>
+                <head>
+                    <title>Pending Summary - ${source}</title>
+                    <style>
+                        body { font-family: sans-serif; padding: 40px; }
+                        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid black; padding-bottom: 10px; }
+                        .header h1 { margin: 0; font-size: 24px; text-transform: uppercase; }
+                        .header h2 { margin: 5px 0; font-size: 18px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid black; padding: 8px; text-align: left; }
+                        th { background-color: #f0f0f0; }
+                        .footer { margin-top: 30px; text-align: right; font-style: italic; font-size: 12px; }
+                    </style>
+                </head>
+                <body>
+                    ${content}
+                </body>
+            </html>
+        `);
+        win.document.close();
+        win.print();
+    };
+
+    if (pendingItems.length === 0) return null;
+
+    return (
+        <>
+            <Button variant="outline" size="sm" className="gap-2 text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100" onClick={handlePrint}>
+                <Printer className="h-4 w-4" />
+                Print Pending List (${source === 'all' ? 'All' : source})
+            </Button>
+            <div ref={printRef} className="hidden">
+                <div className="header">
+                    <h2>SHRI ANANDPUR TRUST</h2>
+                    <h1>PENDING GOODS SUMMARY</h1>
+                    <p>SOURCE: ${source === 'all' ? 'ALL LOCATIONS' : source.toUpperCase()}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style={{ width: '50px' }}>S.N.</th>
+                            <th>ITEM NAME</th>
+                            <th style={{ width: '100px' }}>PENDING QTY</th>
+                            <th style={{ width: '100px' }}>UNIT</th>
+                            <th>DEPARTMENTS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {pendingItems.map((item, i) => (
+                            <tr key={i}>
+                                <td>{i + 1}</td>
+                                <td>{item.productName}</td>
+                                <td><strong>{item.pendingQty}</strong></td>
+                                <td>{item.unit}</td>
+                                <td style={{ fontSize: '11px' }}>{item.depts.join(', ')}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                <div className="footer">
+                    Report Generated on: {format(new Date(), 'dd-MM-yyyy HH:mm')}
+                </div>
+            </div>
+        </>
+    );
+}
+
