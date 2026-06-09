@@ -1,4 +1,3 @@
-
 'use server';
 
 import { 
@@ -134,6 +133,7 @@ export const deleteProduct = async (productId: string): Promise<void> => {
 export const getProductRates = async (productId: string): Promise<Rate[]> => {
   const db = await getDb();
   const ratesCol = collection(db, PRODUCTS_COLLECTION, productId, RATES_SUBCOLLECTION);
+  // Sort by entry time so the truly newest one is first
   const q = query(ratesCol, orderBy('createdAt', 'desc'));
   const ratesSnapshot = await getDocs(q);
   return ratesSnapshot.docs.map(doc => {
@@ -208,7 +208,8 @@ export async function importProductsAndRates(rows: any[][]) {
 export const getDeliveryRecords = async (orderId: string, itemId: string): Promise<DeliveryRecord[]> => {
     const db = await getDb();
     const logsCol = collection(db, ORDERS_COLLECTION, orderId, ORDER_ITEMS_SUBCOLLECTION, itemId, DELIVERY_LOGS_SUBCOLLECTION);
-    const q = query(logsCol, orderBy('deliveryDate', 'desc'));
+    // Sort by entry timestamp so history is perfectly sequential
+    const q = query(logsCol, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => {
         const data = doc.data();
@@ -238,7 +239,8 @@ export const getOrderItems = async (orderId: string): Promise<OrderItem[]> => {
 
 export const getAllOrdersWithItems = async (): Promise<OrderWithItems[]> => {
     const db = await getDb();
-    const q = query(collection(db, ORDERS_COLLECTION), orderBy('orderDate', 'desc'));
+    // Sort primarily by Order Date and secondarily by the time it was actually created
+    const q = query(collection(db, ORDERS_COLLECTION), orderBy('orderDate', 'desc'), orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     const results: OrderWithItems[] = [];
     for (const oDoc of snapshot.docs) {

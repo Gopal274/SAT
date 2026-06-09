@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -30,6 +29,7 @@ export function OrderStats({ orders }: OrderStatsProps) {
         quantity: number;
         unit: string;
         date: Date;
+        createdAt: Date;
         remark?: string;
     }> = [];
 
@@ -54,7 +54,6 @@ export function OrderStats({ orders }: OrderStatsProps) {
         deptStats[order.partyName].pending += pending;
         deptStats[order.partyName].total += qty;
 
-        // Collect all delivery records for recent activity
         if (item.deliveries) {
             item.deliveries.forEach(d => {
                 allDeliveries.push({
@@ -63,6 +62,7 @@ export function OrderStats({ orders }: OrderStatsProps) {
                     quantity: d.quantity,
                     unit: item.unit,
                     date: safeToDate(d.deliveryDate),
+                    createdAt: safeToDate(d.createdAt),
                     remark: d.remark
                 });
             });
@@ -74,9 +74,10 @@ export function OrderStats({ orders }: OrderStatsProps) {
       .map(([name, data]) => ({ name, pending: data.pending }))
       .sort((a, b) => b.pending - a.pending);
 
+    // Sort by actual entry time (createdAt) for the real-time "Latest" view
     const recentDeliveries = allDeliveries
-        .sort((a, b) => b.date.getTime() - a.date.getTime())
-        .slice(0, 5);
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, 10);
 
     return {
       totalPending,
@@ -167,7 +168,7 @@ export function OrderStats({ orders }: OrderStatsProps) {
                     <History className="h-4 w-4 text-blue-500" />
                     Latest Supplies
                 </CardTitle>
-                <CardDescription>Recently logged deliveries.</CardDescription>
+                <CardDescription>Recently logged deliveries (by time).</CardDescription>
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-64 pr-4">
@@ -177,8 +178,13 @@ export function OrderStats({ orders }: OrderStatsProps) {
                                 <div key={i} className="space-y-1">
                                     <div className="flex justify-between items-start">
                                         <div className="text-sm font-semibold leading-none">{delivery.productName}</div>
-                                        <div className="text-[10px] text-muted-foreground font-mono bg-muted px-1 rounded">
-                                            {format(delivery.date, 'dd MMM')}
+                                        <div className="text-right">
+                                            <div className="text-[10px] text-muted-foreground font-mono bg-muted px-1 rounded inline-block">
+                                                {format(delivery.date, 'dd MMM')}
+                                            </div>
+                                            <div className="text-[9px] text-muted-foreground/60 block">
+                                                {format(delivery.createdAt, 'h:mm a')}
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="text-xs text-muted-foreground">

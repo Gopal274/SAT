@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -177,7 +176,10 @@ function DeliveryManager({ orderId, item }: { orderId: string, item: OrderItem }
                                             <div key={log.id} className="text-xs p-2 rounded border bg-muted/30 relative group">
                                                 <div className="flex justify-between font-bold">
                                                     <span>{log.quantity} {item.unit}</span>
-                                                    <span className="text-muted-foreground">{format(safeToDate(log.deliveryDate), 'dd MMM yy')}</span>
+                                                    <div className="text-right">
+                                                        <span className="text-muted-foreground block">{format(safeToDate(log.deliveryDate), 'dd MMM yy')}</span>
+                                                        <span className="text-[9px] text-muted-foreground/60 block">{format(safeToDate(log.createdAt), 'h:mm a')}</span>
+                                                    </div>
                                                 </div>
                                                 {log.remark && <p className="mt-1 italic text-muted-foreground">"{log.remark}"</p>}
                                                 <Button 
@@ -235,7 +237,6 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
             const matchesSource = sourceFilter === 'all' || order.sourceLocation === sourceFilter;
             const matchesDept = deptFilter === 'all' || order.partyName === deptFilter;
             
-            // Expand global search to check item product names too
             const itemNames = order.items.map(i => i.productName).join(' ');
             const searchStr = `${order.partyName} ${order.sourceLocation} ${order.pageNo || ''} ${itemNames}`.toLowerCase();
             const matchesGlobal = !globalFilter || searchStr.includes(globalFilter.toLowerCase());
