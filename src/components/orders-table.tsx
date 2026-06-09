@@ -9,7 +9,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Plus, Trash2, History, Info, Filter, X, Edit, Printer } from 'lucide-react';
+import { Plus, Trash2, History, Info, Filter, X, Edit, Printer, ArrowUpDown, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 
 import type { OrderItem, Product, OrderWithItems, DeliveryRecord } from '@/lib/types';
@@ -210,6 +210,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
   const [sourceFilter, setSourceFilter] = React.useState<string>('all');
   const [deptFilter, setDeptFilter] = React.useState<string>('all');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
+  const [sortBy, setSortBy] = React.useState<string>('date-desc');
   
   const [isOrderFormOpen, setIsOrderFormOpen] = React.useState(false);
   const [editingOrder, setEditingOrder] = React.useState<OrderWithItems | null>(null);
@@ -226,7 +227,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
   }, [allOrders]);
 
   const filteredOrders = React.useMemo(() => {
-    return allOrders
+    let result = allOrders
         .map(order => ({
             ...order,
             items: order.items.filter(item => statusFilter === 'all' || item.status === statusFilter)
@@ -243,7 +244,31 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
 
             return matchesSource && matchesDept && matchesGlobal;
         });
-  }, [allOrders, sourceFilter, deptFilter, statusFilter, globalFilter]);
+
+    // Apply Sorting
+    result.sort((a, b) => {
+        let dateA: number, dateB: number;
+
+        if (sortBy.startsWith('mail')) {
+            dateA = a.mailDate ? safeToDate(a.mailDate).getTime() : 0;
+            dateB = b.mailDate ? safeToDate(b.mailDate).getTime() : 0;
+        } else {
+            dateA = safeToDate(a.orderDate).getTime();
+            dateB = safeToDate(b.orderDate).getTime();
+        }
+
+        if (sortBy.endsWith('desc')) {
+            if (dateB !== dateA) return dateB - dateA;
+        } else {
+            if (dateA !== dateB) return dateA - dateB;
+        }
+
+        // Secondary sort by creation time (newest first) to break ties
+        return safeToDate(b.createdAt).getTime() - safeToDate(a.createdAt).getTime();
+    });
+
+    return result;
+  }, [allOrders, sourceFilter, deptFilter, statusFilter, globalFilter, sortBy]);
 
   const columns: ColumnDef<OrderWithItems>[] = React.useMemo(() => [
     { id: 'serialNumber', header: 'S. No.' },
@@ -290,7 +315,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
 
             <Separator className="my-4" />
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 no-print">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 no-print">
                 <div className="space-y-1">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Search</Label>
                     <Input
@@ -301,7 +326,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                     />
                 </div>
                 <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Source (Indore/Delhi...)</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Source Hub</Label>
                     <Select value={sourceFilter} onValueChange={setSourceFilter}>
                         <SelectTrigger className="h-9">
                             <SelectValue placeholder="All Locations" />
@@ -329,7 +354,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                     </Select>
                 </div>
                 <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Order Item Status</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Status</Label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
                         <SelectTrigger className="h-9">
                             <SelectValue placeholder="Any Status" />
@@ -343,6 +368,22 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                         </SelectContent>
                     </Select>
                 </div>
+                <div className="space-y-1">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                        <ArrowUpDown className="h-2 w-2" /> Sort List By
+                    </Label>
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                        <SelectTrigger className="h-9 font-semibold text-blue-700 border-blue-200 bg-blue-50/50">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="date-desc">Demand Date (Newest)</SelectItem>
+                            <SelectItem value="date-asc">Demand Date (Oldest)</SelectItem>
+                            <SelectItem value="mail-desc">Mail Date (Newest)</SelectItem>
+                            <SelectItem value="mail-asc">Mail Date (Oldest)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
             
             {(sourceFilter !== 'all' || deptFilter !== 'all' || statusFilter !== 'all' || globalFilter) && (
@@ -352,8 +393,9 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                         setDeptFilter('all');
                         setStatusFilter('all');
                         setGlobalFilter('');
+                        setSortBy('date-desc');
                     }} className="h-7 text-xs text-muted-foreground">
-                        <X className="mr-1 h-3 w-3" /> Clear Filters
+                        <X className="mr-1 h-3 w-3" /> Clear Filters & Reset Sort
                     </Button>
                 </div>
             )}
