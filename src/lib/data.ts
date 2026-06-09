@@ -37,6 +37,17 @@ const normalizeName = (name: string): string => {
     return name.toLowerCase().replace(/[\s\/-]/g, '');
 }
 
+/**
+ * Safely converts Firestore Timestamp or other date formats to JS Date.
+ */
+function toDate(val: any): Date {
+    if (!val) return new Date();
+    if (val instanceof Date) return val;
+    if (typeof val === 'object' && 'seconds' in val) return (val as Timestamp).toDate();
+    const parsed = new Date(val);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
 export const addProduct = async (formData: ProductSchema): Promise<{product: Product, rate: Rate}> => {
   const db = await getDb();
   const { name, unit, partyName, rate, gst, pageNo, billDate } = formData;
@@ -133,14 +144,18 @@ export const deleteProduct = async (productId: string): Promise<void> => {
 export const getProductRates = async (productId: string): Promise<Rate[]> => {
   const db = await getDb();
   const ratesCol = collection(db, PRODUCTS_COLLECTION, productId, RATES_SUBCOLLECTION);
-  // Sort by entry time so the truly newest one is first
   const q = query(ratesCol, orderBy('createdAt', 'desc'));
   const ratesSnapshot = await getDocs(q);
   return ratesSnapshot.docs.map(doc => {
       const data = doc.data();
-      const createdAt = (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date();
-      const billDate = (data.billDate as Timestamp)?.toDate ? (data.billDate as Timestamp).toDate() : new Date();
-      return { id: doc.id, rate: data.rate, gst: data.gst, pageNo: data.pageNo, billDate, createdAt } as Rate;
+      return { 
+          id: doc.id, 
+          rate: data.rate, 
+          gst: data.gst, 
+          pageNo: data.pageNo, 
+          billDate: toDate(data.billDate), 
+          createdAt: toDate(data.createdAt) 
+      } as Rate;
   });
 };
 
@@ -208,7 +223,6 @@ export async function importProductsAndRates(rows: any[][]) {
 export const getDeliveryRecords = async (orderId: string, itemId: string): Promise<DeliveryRecord[]> => {
     const db = await getDb();
     const logsCol = collection(db, ORDERS_COLLECTION, orderId, ORDER_ITEMS_SUBCOLLECTION, itemId, DELIVERY_LOGS_SUBCOLLECTION);
-    // Sort by entry timestamp so history is perfectly sequential
     const q = query(logsCol, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => {
@@ -216,9 +230,9 @@ export const getDeliveryRecords = async (orderId: string, itemId: string): Promi
         return {
             id: doc.id,
             quantity: data.quantity,
-            deliveryDate: (data.deliveryDate as Timestamp)?.toDate?.() || new Date(data.deliveryDate),
+            deliveryDate: toDate(data.deliveryDate),
             remark: data.remark || '',
-            createdAt: (data.createdAt as Timestamp)?.toDate?.() || new Date(),
+            createdAt: toDate(data.createdAt),
         };
     });
 };
@@ -239,23 +253,33 @@ export const getOrderItems = async (orderId: string): Promise<OrderItem[]> => {
 
 export const getAllOrdersWithItems = async (): Promise<OrderWithItems[]> => {
     const db = await getDb();
-    // Sort primarily by Order Date and secondarily by the time it was actually created
-    const q = query(collection(db, ORDERS_COLLECTION), orderBy('orderDate', 'desc'), orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
+    // Use a simple query first to avoid Composite Index errors
+    const snapshot = await getDocs(collection(db, ORDERS_COLLECTION));
     const results: OrderWithItems[] = [];
+    
     for (const oDoc of snapshot.docs) {
         const data = oDoc.data();
         const items = await getOrderItems(oDoc.id);
         results.push({ 
             id: oDoc.id, 
             ...data, 
-            orderDate: (data.orderDate as Timestamp).toDate(),
-            mailDate: data.mailDate ? (data.mailDate as Timestamp).toDate() : undefined,
-            createdAt: (data.createdAt as Timestamp).toDate(), 
+            orderDate: toDate(data.orderDate),
+            mailDate: data.mailDate ? toDate(data.mailDate) : undefined,
+            createdAt: toDate(data.createdAt), 
             items 
         } as any);
     }
-    return results;
+
+    // Sort in memory to avoid the need for composite indexes
+    return results.sort((a, b) => {
+        const dateA = toDate(a.orderDate).getTime();
+        const dateB = toDate(b.orderDate).getTime();
+        if (dateB !== dateA) return dateB - dateA;
+        
+        const createdA = toDate(a.createdAt).getTime();
+        const createdB = toDate(b.createdAt).getTime();
+        return createdB - createdA;
+    });
 };
 
 export const logDeliveryRecord = async (orderId: string, itemId: string, record: { quantity: number; deliveryDate: Date; remark: string }): Promise<void> => {
@@ -264,7 +288,6 @@ export const logDeliveryRecord = async (orderId: string, itemId: string, record:
     const logsCol = collection(itemRef, DELIVERY_LOGS_SUBCOLLECTION);
     
     await runTransaction(db, async (transaction) => {
-        // 1. READ FIRST
         const itemDoc = await transaction.get(itemRef);
         if (!itemDoc.exists()) throw new Error("Item not found");
         
@@ -273,12 +296,10 @@ export const logDeliveryRecord = async (orderId: string, itemId: string, record:
         const currentReceived = data?.receivedQuantity || 0;
         const totalReceived = currentReceived + record.quantity;
         
-        // Auto-update status based on new total
         let newStatus = data?.status || 'pending';
         if (totalReceived >= reqQty) newStatus = 'received';
         else if (totalReceived > 0) newStatus = 'dispatched';
         
-        // 2. WRITE SECOND
         const newLogRef = doc(logsCol);
         transaction.set(newLogRef, { ...record, createdAt: serverTimestamp() });
         transaction.update(itemRef, { receivedQuantity: totalReceived, status: newStatus });
@@ -291,7 +312,6 @@ export const deleteDeliveryRecord = async (orderId: string, itemId: string, logI
     const logRef = doc(itemRef, DELIVERY_LOGS_SUBCOLLECTION, logId);
     
     await runTransaction(db, async (transaction) => {
-        // 1. READ FIRST
         const logDoc = await transaction.get(logRef);
         const itemDoc = await transaction.get(itemRef);
         
@@ -307,7 +327,6 @@ export const deleteDeliveryRecord = async (orderId: string, itemId: string, logI
         else if (totalReceived < reqQty) newStatus = 'dispatched';
         else newStatus = 'received';
 
-        // 2. WRITE SECOND
         transaction.delete(logRef);
         transaction.update(itemRef, { receivedQuantity: totalReceived, status: newStatus });
     });
@@ -348,7 +367,6 @@ export const updateOrder = async (orderId: string, orderData: CreateOrderSchema)
     const { partyName, sourceLocation, orderDate, mailDate, items, pageNo } = orderData;
 
     await runTransaction(db, async (transaction) => {
-        // Update main order doc
         transaction.update(orderRef, {
             partyName,
             sourceLocation: sourceLocation || '',
@@ -357,7 +375,6 @@ export const updateOrder = async (orderId: string, orderData: CreateOrderSchema)
             pageNo,
         });
 
-        // For items:
         const itemsSnapshot = await getDocs(collection(orderRef, ORDER_ITEMS_SUBCOLLECTION));
         const existingItems = itemsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 

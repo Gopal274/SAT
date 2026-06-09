@@ -89,7 +89,10 @@ export async function getAllProductsWithRatesAction(): Promise<ProductWithRates[
   try {
     const products = await getAllProductsWithRates();
     return JSON.parse(JSON.stringify(products));
-  } catch (error) { return []; }
+  } catch (error) { 
+    console.error("Fetch products failed:", error);
+    return []; 
+  }
 }
 
 export async function createOrderAction(formData: CreateOrderSchema) {
@@ -132,7 +135,10 @@ export async function getAllOrdersWithItemsAction(): Promise<OrderWithItems[]> {
     try {
       const orders = await getAllOrdersWithItemsFromDb();
       return JSON.parse(JSON.stringify(orders));
-    } catch (error) { return []; }
+    } catch (error) { 
+      console.error("Fetch orders failed:", error);
+      return []; 
+    }
 }
 
 function convertDataForSheet(allProductsWithRates: ProductWithRates[]): (string | number | null)[][] {
