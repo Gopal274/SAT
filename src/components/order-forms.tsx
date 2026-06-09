@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -62,7 +63,7 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
 
   return (
     <div className="relative grid grid-cols-12 gap-x-3 gap-y-2 border p-3 rounded-md bg-muted/20">
-        <div className="col-span-12 md:col-span-6">
+        <div className="col-span-12 md:col-span-5">
              <FormField
                 control={control}
                 name={`items.${index}.productName`}
@@ -90,7 +91,7 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
                 )}
             />
         </div>
-        <div className="col-span-6 md:col-span-2">
+        <div className="col-span-4 md:col-span-2">
             <FormField
                 control={control}
                 name={`items.${index}.unit`}
@@ -105,7 +106,7 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
                 )}
             />
         </div>
-        <div className="col-span-4 md:col-span-3">
+        <div className="col-span-4 md:col-span-2">
             <FormField
                 control={control}
                 name={`items.${index}.quantity`}
@@ -114,6 +115,21 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
                         <FormLabel className="text-xs">Quantity</FormLabel>
                         <FormControl>
                             <Input type="number" step="any" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+        </div>
+        <div className="col-span-12 md:col-span-2">
+            <FormField
+                control={control}
+                name={`items.${index}.remark`}
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="text-xs">Remark</FormLabel>
+                        <FormControl>
+                            <Input placeholder="Note..." {...field} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -161,7 +177,7 @@ export function OrderFormDialog({
             mailDate: '',
             status: 'pending',
             pageNo: undefined,
-            items: [{ productName: '', unit: '', quantity: 1 }]
+            items: [{ productName: '', unit: '', quantity: 1, remark: '' }]
         },
         context: allProducts
     });
@@ -180,7 +196,8 @@ export function OrderFormDialog({
                         productName: item.productName,
                         unit: item.unit,
                         quantity: item.quantity,
-                        productId: item.productId
+                        productId: item.productId,
+                        remark: item.remark || ''
                     }))
                 });
             } else {
@@ -191,7 +208,7 @@ export function OrderFormDialog({
                     mailDate: '',
                     status: 'pending',
                     pageNo: undefined,
-                    items: [{ productName: '', unit: '', quantity: 1 }]
+                    items: [{ productName: '', unit: '', quantity: 1, remark: '' }]
                 });
             }
         }
@@ -239,7 +256,7 @@ export function OrderFormDialog({
                     <DialogHeader>
                         <DialogTitle>{isEditing ? 'Edit Order' : 'Create New Order'}</DialogTitle>
                         <DialogDescription>
-                            Enter department and required items. Prices are not tracked here.
+                            Enter department and required items. Remarks are optional.
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto px-1">
@@ -334,7 +351,7 @@ export function OrderFormDialog({
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => append({ productName: '', unit: '', quantity: 1 })}
+                                    onClick={() => append({ productName: '', unit: '', quantity: 1, remark: '' })}
                                 >
                                     <PlusCircle className="mr-2 h-4 w-4" />
                                     Add Another Item
@@ -474,7 +491,7 @@ export function PrintOrderSlip({ order }: { order: OrderWithItems }) {
                                 <td>{item.productName}</td>
                                 <td>{item.quantity}</td>
                                 <td>{item.unit}</td>
-                                <td></td>
+                                <td>{item.remark || ''}</td>
                             </tr>
                         ))}
                     </tbody>

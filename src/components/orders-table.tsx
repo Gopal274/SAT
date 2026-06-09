@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -254,6 +255,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
     { accessorKey: 'pageNo', header: 'Page No.' },
     { accessorKey: 'sourceLocation', header: 'Source' },
     { id: 'status', header: 'Status' },
+    { id: 'remarks', header: 'Remarks' },
     { id: 'actions', header: () => <div className="text-center">Actions</div> },
   ], []);
 
@@ -384,6 +386,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                             <TableCell className="text-center border-r">{order.pageNo ?? '-'}</TableCell>
                                             <TableCell className="border-r whitespace-nowrap text-muted-foreground">{order.sourceLocation || '-'}</TableCell>
                                             <TableCell className="border-r"></TableCell>
+                                            <TableCell className="border-r"></TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex items-center justify-center gap-1">
                                                     <PrintOrderSlip order={order} />
@@ -455,6 +458,9 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                         )}
                                         <TableCell className="border-r">
                                             <ItemStatusChanger orderId={order.id} item={item} />
+                                        </TableCell>
+                                        <TableCell className="border-r whitespace-nowrap text-xs italic text-muted-foreground">
+                                            {item.remark || '-'}
                                         </TableCell>
                                         {itemIndex === 0 && (
                                             <TableCell rowSpan={rowSpan} className="align-top pt-4 text-center">

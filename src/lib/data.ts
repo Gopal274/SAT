@@ -1,3 +1,4 @@
+
 'use server';
 
 import { 
@@ -326,7 +327,14 @@ export const createOrder = async (orderData: CreateOrderSchema): Promise<OrderWi
     const batch = writeBatch(db);
     items.forEach(item => {
         const iRef = doc(collection(newOrderRef, ORDER_ITEMS_SUBCOLLECTION));
-        batch.set(iRef, { productName: item.productName, unit: item.unit, quantity: item.quantity, status: 'pending', receivedQuantity: 0 });
+        batch.set(iRef, { 
+            productName: item.productName, 
+            unit: item.unit, 
+            quantity: item.quantity, 
+            remark: item.remark || '',
+            status: 'pending', 
+            receivedQuantity: 0 
+        });
     });
     await batch.commit();
     return { id: newOrderRef.id, ...orderData, items: [], createdAt: new Date(), totalAmount: 0 } as any;
@@ -347,32 +355,32 @@ export const updateOrder = async (orderId: string, orderData: CreateOrderSchema)
             pageNo,
         });
 
-        // For items, we keep it simple for now: 
-        // 1. Get existing items
+        // For items:
         const itemsSnapshot = await getDocs(collection(orderRef, ORDER_ITEMS_SUBCOLLECTION));
         const existingItems = itemsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // 2. Add/Update items from the form
         for (const item of items) {
             const existing = existingItems.find(ei => (ei as any).productName === item.productName);
             if (existing) {
-                // Update quantity/unit but keep status and delivery history
                 const iRef = doc(db, ORDERS_COLLECTION, orderId, ORDER_ITEMS_SUBCOLLECTION, existing.id);
-                transaction.update(iRef, { unit: item.unit, quantity: item.quantity });
+                transaction.update(iRef, { unit: item.unit, quantity: item.quantity, remark: item.remark || '' });
             } else {
-                // Add new item
                 const iRef = doc(collection(orderRef, ORDER_ITEMS_SUBCOLLECTION));
-                transaction.set(iRef, { productName: item.productName, unit: item.unit, quantity: item.quantity, status: 'pending', receivedQuantity: 0 });
+                transaction.set(iRef, { 
+                    productName: item.productName, 
+                    unit: item.unit, 
+                    quantity: item.quantity, 
+                    remark: item.remark || '',
+                    status: 'pending', 
+                    receivedQuantity: 0 
+                });
             }
         }
 
-        // 3. (Optional) Remove items that are no longer in the form
         for (const ei of existingItems) {
             const stillExists = items.some(i => i.productName === (ei as any).productName);
             if (!stillExists) {
                 const iRef = doc(db, ORDERS_COLLECTION, orderId, ORDER_ITEMS_SUBCOLLECTION, ei.id);
-                // Note: Deleting an item should also ideally delete its delivery logs, but in a transaction we can just delete the ref
-                // For simplicity, we just mark it as removed or delete it.
                 transaction.delete(iRef);
             }
         }

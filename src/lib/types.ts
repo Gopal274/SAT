@@ -71,6 +71,7 @@ export const orderItemSchema = z.object({
   productName: z.string().min(1, "Product name is required."),
   unit: z.string().min(1, "Unit is required."),
   quantity: z.coerce.number().min(0.01, "Quantity must be greater than 0."),
+  remark: z.string().optional(),
   rate: z.coerce.number().optional(),
   gst: z.coerce.number().optional(),
 });
@@ -102,6 +103,7 @@ export type OrderItem = {
   unit: string;
   quantity: number;
   receivedQuantity?: number;
+  remark?: string;
   rate?: number;
   gst?: number;
   status: 'pending' | 'received' | 'dispatched' | 'cancelled';
