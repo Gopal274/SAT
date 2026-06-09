@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -7,7 +6,7 @@ import { useForm, useFieldArray, useFormContext } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 
-import { createOrderAction, deleteOrderAction } from '@/lib/actions';
+import { createOrderAction, updateOrderAction, deleteOrderAction } from '@/lib/actions';
 import type { Product, CreateOrderSchema, OrderWithItems } from '@/lib/types';
 import { createOrderSchema } from '@/lib/types';
 
@@ -137,8 +136,21 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
   )
 }
 
-export function CreateOrderDialog({ isOpen, setIsOpen, departmentNameOptions, allProducts }: { isOpen: boolean; setIsOpen: (open: boolean) => void; departmentNameOptions: string[]; allProducts: Product[] }) {
+export function OrderFormDialog({ 
+    order,
+    isOpen, 
+    setIsOpen, 
+    departmentNameOptions, 
+    allProducts 
+}: { 
+    order?: OrderWithItems;
+    isOpen: boolean; 
+    setIsOpen: (open: boolean) => void; 
+    departmentNameOptions: string[]; 
+    allProducts: Product[] 
+}) {
     const { toast } = useToast();
+    const isEditing = !!order;
     
     const form = useForm<CreateOrderSchema>({
         resolver: zodResolver(createOrderSchema),
@@ -153,6 +165,37 @@ export function CreateOrderDialog({ isOpen, setIsOpen, departmentNameOptions, al
         },
         context: allProducts
     });
+
+    React.useEffect(() => {
+        if (isOpen) {
+            if (isEditing && order) {
+                form.reset({
+                    partyName: order.partyName,
+                    sourceLocation: order.sourceLocation || '',
+                    orderDate: format(safeToDate(order.orderDate), 'yyyy-MM-dd'),
+                    mailDate: order.mailDate ? format(safeToDate(order.mailDate), 'yyyy-MM-dd') : '',
+                    status: order.status,
+                    pageNo: order.pageNo,
+                    items: order.items.map(item => ({
+                        productName: item.productName,
+                        unit: item.unit,
+                        quantity: item.quantity,
+                        productId: item.productId
+                    }))
+                });
+            } else {
+                form.reset({
+                    partyName: '',
+                    sourceLocation: '',
+                    orderDate: format(new Date(), 'yyyy-MM-dd'),
+                    mailDate: '',
+                    status: 'pending',
+                    pageNo: undefined,
+                    items: [{ productName: '', unit: '', quantity: 1 }]
+                });
+            }
+        }
+    }, [isOpen, isEditing, order, form]);
 
     const { fields, append, remove } = useFieldArray({
         control: form.control,
@@ -172,10 +215,15 @@ export function CreateOrderDialog({ isOpen, setIsOpen, departmentNameOptions, al
 
     const onSubmit = async (data: CreateOrderSchema) => {
         setIsSubmitting(true);
-        const result = await createOrderAction(data);
+        let result;
+        if (isEditing && order) {
+            result = await updateOrderAction(order.id, data);
+        } else {
+            result = await createOrderAction(data);
+        }
         
         if(result.success) {
-            toast({ title: "Order Created", description: "The order has been saved successfully." });
+            toast({ title: isEditing ? "Order Updated" : "Order Created", description: `The order has been ${isEditing ? 'updated' : 'saved'} successfully.` });
             setIsOpen(false);
             form.reset();
         } else {
@@ -189,7 +237,7 @@ export function CreateOrderDialog({ isOpen, setIsOpen, departmentNameOptions, al
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
                     <DialogHeader>
-                        <DialogTitle>Create New Order</DialogTitle>
+                        <DialogTitle>{isEditing ? 'Edit Order' : 'Create New Order'}</DialogTitle>
                         <DialogDescription>
                             Enter department and required items. Prices are not tracked here.
                         </DialogDescription>
@@ -303,7 +351,7 @@ export function CreateOrderDialog({ isOpen, setIsOpen, departmentNameOptions, al
                         
                         <DialogFooter className="sticky bottom-0 bg-background pt-2">
                             <DialogClose asChild><Button type="button" variant="ghost" disabled={isSubmitting}>Cancel</Button></DialogClose>
-                            <Button type="submit" disabled={isSubmitting || fields.length === 0}>{isSubmitting ? 'Saving...' : 'Create Order'}</Button>
+                            <Button type="submit" disabled={isSubmitting || fields.length === 0}>{isSubmitting ? 'Saving...' : (isEditing ? 'Update Order' : 'Create Order')}</Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>

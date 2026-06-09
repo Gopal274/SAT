@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -10,7 +9,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Plus, Trash2, History, Info, Filter, X } from 'lucide-react';
+import { Plus, Trash2, History, Info, Filter, X, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 
 import type { OrderItem, Product, OrderWithItems, DeliveryRecord } from '@/lib/types';
@@ -34,7 +33,7 @@ import {
   CardHeader,
   CardTitle,
 } from './ui/card';
-import { CreateOrderDialog, DeleteOrderDialog, PrintOrderSlip } from './order-forms';
+import { OrderFormDialog, DeleteOrderDialog, PrintOrderSlip } from './order-forms';
 import {
   Select,
   SelectContent,
@@ -133,7 +132,7 @@ function DeliveryManager({ orderId, item }: { orderId: string, item: OrderItem }
                     )}
                     onClick={() => setIsOpen(true)}
                 >
-                    <History className="h-3 v-3" />
+                    <History className="h-3 w-3" />
                     {item.receivedQuantity || 0} / {item.quantity}
                 </Button>
             </div>
@@ -209,7 +208,8 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
   const [deptFilter, setDeptFilter] = React.useState<string>('all');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
   
-  const [isCreateOrderOpen, setIsCreateOrderOpen] = React.useState(false);
+  const [isOrderFormOpen, setIsOrderFormOpen] = React.useState(false);
+  const [editingOrder, setEditingOrder] = React.useState<OrderWithItems | null>(null);
   const [deletingOrder, setDeletingOrder] = React.useState<OrderWithItems | null>(null);
 
   const uniqueSources = React.useMemo(() => {
@@ -234,7 +234,9 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
             const matchesSource = sourceFilter === 'all' || order.sourceLocation === sourceFilter;
             const matchesDept = deptFilter === 'all' || order.partyName === deptFilter;
             
-            const searchStr = `${order.partyName} ${order.sourceLocation} ${order.pageNo || ''}`.toLowerCase();
+            // Expand global search to check item product names too
+            const itemNames = order.items.map(i => i.productName).join(' ');
+            const searchStr = `${order.partyName} ${order.sourceLocation} ${order.pageNo || ''} ${itemNames}`.toLowerCase();
             const matchesGlobal = !globalFilter || searchStr.includes(globalFilter.toLowerCase());
 
             return matchesSource && matchesDept && matchesGlobal;
@@ -275,7 +277,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                     <CardTitle>Orders & Supply Tracking</CardTitle>
                     <CardDescription>Filter by Source or Department to manage Trust demands.</CardDescription>
                 </div>
-                <Button onClick={() => setIsCreateOrderOpen(true)}>
+                <Button onClick={() => { setEditingOrder(null); setIsOrderFormOpen(true); }}>
                     <Plus className="mr-2 h-4 w-4" /> Create Order
                 </Button>
             </div>
@@ -286,7 +288,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                 <div className="space-y-1">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Search</Label>
                     <Input
-                        placeholder="Search Dept or Page..."
+                        placeholder="Dept, Page, or Item..."
                         value={globalFilter}
                         onChange={(event) => setGlobalFilter(event.target.value)}
                         className="h-9"
@@ -385,6 +387,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                             <TableCell className="text-center">
                                                 <div className="flex items-center justify-center gap-1">
                                                     <PrintOrderSlip order={order} />
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => { setEditingOrder(order); setIsOrderFormOpen(true); }}><Edit className="h-4 w-4" /></Button>
                                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingOrder(order)}><Trash2 className="h-4 w-4" /></Button>
                                                 </div>
                                             </TableCell>
@@ -465,6 +468,14 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                                         </Tooltip>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={() => { setEditingOrder(order); setIsOrderFormOpen(true); }}>
+                                                                    <Edit className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Edit Order Header/Items</p></TooltipContent>
+                                                        </Tooltip>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
                                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => setDeletingOrder(order)}>
                                                                     <Trash2 className="h-4 w-4" />
                                                                 </Button>
@@ -491,9 +502,10 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
           </CardContent>
       </Card>
 
-      <CreateOrderDialog 
-        isOpen={isCreateOrderOpen}
-        setIsOpen={setIsCreateOrderOpen}
+      <OrderFormDialog 
+        order={editingOrder || undefined}
+        isOpen={isOrderFormOpen}
+        setIsOpen={setIsOrderFormOpen}
         departmentNameOptions={uniqueDepts}
         allProducts={allProducts}
       />

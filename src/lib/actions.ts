@@ -1,4 +1,3 @@
-
 'use server';
 
 import { revalidatePath } from 'next/cache';
@@ -12,6 +11,7 @@ import {
   getAllProductsWithRates,
   importProductsAndRates,
   createOrder as createOrderInDb,
+  updateOrder as updateOrderInDb,
   updateOrderItemStatus as updateOrderItemStatusInDb,
   getAllOrdersWithItems as getAllOrdersWithItemsFromDb,
   deleteOrder as deleteOrderFromDb,
@@ -98,6 +98,14 @@ export async function createOrderAction(formData: CreateOrderSchema) {
         return { order, message: 'Order created successfully.' };
     }, mainPaths.concat(orderPaths));
     return result.success ? { success: true, ...result.data } : { success: false, message: result.message };
+}
+
+export async function updateOrderAction(orderId: string, formData: CreateOrderSchema) {
+    const result = await handleAction(async () => {
+        await updateOrderInDb(orderId, formData);
+        return { message: 'Order updated successfully.' };
+    }, mainPaths.concat(orderPaths));
+    return result.success ? { success: true, message: 'Order updated successfully.' } : { success: false, message: result.message };
 }
 
 export async function deleteOrderAction(orderId: string) {
