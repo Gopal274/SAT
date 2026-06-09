@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -252,7 +251,7 @@ export function OrderStats({ orders }: OrderStatsProps) {
                             <Sparkles className="h-10 w-10 text-muted-foreground/20" />
                             <div className="max-w-xs">
                                 <p className="text-sm text-muted-foreground font-medium">No analysis generated yet.</p>
-                                <p className="text-xs text-muted-foreground/60">Let AI analyze your {{stats.pendingItemsList.length}} pending demands to find shortcuts.</p>
+                                <p className="text-xs text-muted-foreground/60">Let AI analyze your {stats.pendingItemsList.length} pending demands to find shortcuts.</p>
                             </div>
                             <Button variant="secondary" size="sm" onClick={handleGenerateInsight}>
                                 Generate Insights
