@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -9,7 +10,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Plus, Trash2, History, Info, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Trash2, History, Info, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon, Paperclip, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 
 import type { OrderItem, Product, OrderWithItems, DeliveryRecord } from '@/lib/types';
@@ -205,6 +206,46 @@ function DeliveryManager({ orderId, item }: { orderId: string, item: OrderItem }
     );
 }
 
+function AttachmentViewer({ url }: { url?: string }) {
+    const [isOpen, setIsOpen] = React.useState(false);
+    if (!url) return null;
+
+    const isPdf = url.startsWith('data:application/pdf');
+
+    return (
+        <>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-purple-600" onClick={() => setIsOpen(true)}>
+                            <Paperclip className="h-4 w-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>View Original Demand Slip</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh]">
+                    <DialogHeader>
+                        <DialogTitle>Original Demand Slip Attachment</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-auto flex justify-center bg-muted/20 rounded-lg p-2">
+                        {isPdf ? (
+                            <iframe src={url} className="w-full h-[70vh]" title="Slip PDF" />
+                        ) : (
+                            <img src={url} className="max-w-full h-auto object-contain" alt="Slip Attachment" />
+                        )}
+                    </div>
+                    <div className="flex justify-end pt-2">
+                        <Button variant="outline" onClick={() => setIsOpen(false)}>Close</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+}
+
 export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithItems[], allProducts: Product[] }) {
   const [globalFilter, setGlobalFilter] = React.useState('');
   const [sourceFilter, setSourceFilter] = React.useState<string>('all');
@@ -244,17 +285,14 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
             const searchStr = `${order.partyName} ${order.sourceLocation} ${order.pageNo || ''} ${itemNames}`.toLowerCase();
             const matchesGlobal = !globalFilter || searchStr.includes(globalFilter.toLowerCase());
 
-            // Date Range Filter
             const orderDateTime = safeToDate(order.orderDate).getTime();
             const start = startDate ? new Date(startDate).getTime() : -Infinity;
-            // Set end to end of day (adding 23:59:59 worth of milliseconds)
             const end = endDate ? new Date(endDate).getTime() + 86399999 : Infinity;
             const matchesDateRange = orderDateTime >= start && orderDateTime <= end;
 
             return matchesSource && matchesDept && matchesGlobal && matchesDateRange;
         });
 
-    // Apply Sorting
     result.sort((a, b) => {
         let dateA: number, dateB: number;
 
@@ -272,7 +310,6 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
             if (dateA !== dateB) return dateA - dateB;
         }
 
-        // Secondary sort by creation time (newest first) to break ties
         return safeToDate(b.createdAt).getTime() - safeToDate(a.createdAt).getTime();
     });
 
@@ -472,6 +509,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                             <TableCell className="border-r"></TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex items-center justify-center gap-1">
+                                                    <AttachmentViewer url={order.attachmentUrl} />
                                                     <PrintOrderSlip order={order} />
                                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => { setEditingOrder(order); setIsOrderFormOpen(true); }}><Edit className="h-4 w-4" /></Button>
                                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingOrder(order)}><Trash2 className="h-4 w-4" /></Button>
@@ -549,6 +587,12 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                             <TableCell rowSpan={rowSpan} className="align-top pt-4 text-center">
                                                 <div className="flex items-center justify-center gap-1">
                                                     <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <AttachmentViewer url={order.attachmentUrl} />
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>View Attachment</p></TooltipContent>
+                                                        </Tooltip>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
                                                                 <PrintOrderSlip order={order} />

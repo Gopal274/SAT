@@ -1,3 +1,4 @@
+
 'use server';
 
 import { 
@@ -253,7 +254,6 @@ export const getOrderItems = async (orderId: string): Promise<OrderItem[]> => {
 
 export const getAllOrdersWithItems = async (): Promise<OrderWithItems[]> => {
     const db = await getDb();
-    // Use a simple query first to avoid Composite Index errors
     const snapshot = await getDocs(collection(db, ORDERS_COLLECTION));
     const results: OrderWithItems[] = [];
     
@@ -270,7 +270,6 @@ export const getAllOrdersWithItems = async (): Promise<OrderWithItems[]> => {
         } as any);
     }
 
-    // Sort in memory to avoid the need for composite indexes
     return results.sort((a, b) => {
         const dateA = toDate(a.orderDate).getTime();
         const dateB = toDate(b.orderDate).getTime();
@@ -334,7 +333,7 @@ export const deleteDeliveryRecord = async (orderId: string, itemId: string, logI
 
 export const createOrder = async (orderData: CreateOrderSchema): Promise<OrderWithItems> => {
     const db = await getDb();
-    const { partyName, sourceLocation, orderDate, mailDate, status, items, pageNo } = orderData;
+    const { partyName, sourceLocation, orderDate, mailDate, status, items, pageNo, attachmentUrl } = orderData;
     const newOrderRef = await addDoc(collection(db, ORDERS_COLLECTION), {
         partyName, 
         sourceLocation: sourceLocation || '', 
@@ -343,6 +342,7 @@ export const createOrder = async (orderData: CreateOrderSchema): Promise<OrderWi
         status, 
         totalAmount: 0, 
         pageNo, 
+        attachmentUrl: attachmentUrl || null,
         createdAt: serverTimestamp()
     });
     const batch = writeBatch(db);
@@ -364,7 +364,7 @@ export const createOrder = async (orderData: CreateOrderSchema): Promise<OrderWi
 export const updateOrder = async (orderId: string, orderData: CreateOrderSchema): Promise<void> => {
     const db = await getDb();
     const orderRef = doc(db, ORDERS_COLLECTION, orderId);
-    const { partyName, sourceLocation, orderDate, mailDate, items, pageNo } = orderData;
+    const { partyName, sourceLocation, orderDate, mailDate, items, pageNo, attachmentUrl } = orderData;
 
     await runTransaction(db, async (transaction) => {
         transaction.update(orderRef, {
@@ -373,6 +373,7 @@ export const updateOrder = async (orderId: string, orderData: CreateOrderSchema)
             orderDate: new Date(orderDate),
             mailDate: mailDate ? new Date(mailDate) : null,
             pageNo,
+            attachmentUrl: attachmentUrl || null,
         });
 
         const itemsSnapshot = await getDocs(collection(orderRef, ORDER_ITEMS_SUBCOLLECTION));

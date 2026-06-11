@@ -31,7 +31,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, Printer } from 'lucide-react';
+import { PlusCircle, Trash2, Printer, Camera, Sparkles, FileUp, Loader2 } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { safeToDate } from '@/lib/utils';
 import {
@@ -44,13 +44,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { scanOrder } from '@/ai/flows/scan-order-flow';
+import { Separator } from './ui/separator';
 
 function OrderItemRow({ index, remove, productOptions }: { index: number; remove: (index: number) => void; productOptions: {value: string; label: string;}[] }) {
   const { control, setValue } = useFormContext<CreateOrderSchema>();
   
   const handleProductNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
-    // Context is passed to the form to have access to all products for auto-filling
     const allProducts = (control as any)._options.context as Product[];
     const product = allProducts?.find(p => p.name.toLowerCase() === newName.toLowerCase());
 
@@ -169,6 +170,7 @@ export function OrderFormDialog({
 }) {
     const { toast } = useToast();
     const isEditing = !!order;
+    const [isScanning, setIsScanning] = React.useState(false);
     
     const form = useForm<CreateOrderSchema>({
         resolver: zodResolver(createOrderSchema),
@@ -179,9 +181,15 @@ export function OrderFormDialog({
             mailDate: '',
             status: 'pending',
             pageNo: undefined,
+            attachmentUrl: '',
             items: [{ productName: '', unit: '', quantity: 1, remark: '' }]
         },
         context: allProducts
+    });
+
+    const { fields, append, remove, replace } = useFieldArray({
+        control: form.control,
+        name: "items",
     });
 
     React.useEffect(() => {
@@ -194,6 +202,7 @@ export function OrderFormDialog({
                     mailDate: order.mailDate ? format(safeToDate(order.mailDate), 'yyyy-MM-dd') : '',
                     status: order.status,
                     pageNo: order.pageNo,
+                    attachmentUrl: order.attachmentUrl || '',
                     items: order.items.map(item => ({
                         productName: item.productName,
                         unit: item.unit,
@@ -210,18 +219,55 @@ export function OrderFormDialog({
                     mailDate: '',
                     status: 'pending',
                     pageNo: undefined,
+                    attachmentUrl: '',
                     items: [{ productName: '', unit: '', quantity: 1, remark: '' }]
                 });
             }
         }
     }, [isOpen, isEditing, order, form]);
-
-    const { fields, append, remove } = useFieldArray({
-        control: form.control,
-        name: "items",
-    });
     
     const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            form.setValue('attachmentUrl', base64String);
+            toast({ title: "File Attached", description: "You can now use AI to scan this document." });
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleScanWithAI = async () => {
+        const photoUrl = form.getValues('attachmentUrl');
+        if (!photoUrl) {
+            toast({ variant: 'destructive', title: "No File", description: "Please upload a photo of the list first." });
+            return;
+        }
+
+        setIsScanning(true);
+        try {
+            const result = await scanOrder({ photoDataUri: photoUrl });
+            if (result.items && result.items.length > 0) {
+                replace(result.items.map(item => ({
+                    productName: item.productName,
+                    unit: item.unit,
+                    quantity: item.quantity,
+                    remark: item.remark
+                })));
+                if (result.partyName) form.setValue('partyName', result.partyName);
+                toast({ title: "Scan Complete", description: `Found ${result.items.length} items from your photo.` });
+            }
+        } catch (error) {
+            console.error("AI Scan Error:", error);
+            toast({ variant: 'destructive', title: "Scan Failed", description: "Could not read the list. Please ensure the photo is clear." });
+        } finally {
+            setIsScanning(false);
+        }
+    };
 
     const productOptions = React.useMemo(() => 
         allProducts
@@ -254,15 +300,51 @@ export function OrderFormDialog({
     return (
         <Form {...form}>
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col">
                     <DialogHeader>
-                        <DialogTitle>{isEditing ? 'Edit Order' : 'Create New Order'}</DialogTitle>
-                        <DialogDescription>
-                            Enter department and required items. Unit will auto-fill for known products.
-                        </DialogDescription>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <DialogTitle>{isEditing ? 'Edit Order' : 'Create New Order'}</DialogTitle>
+                                <DialogDescription>
+                                    Enter details manually or use AI to scan a photo of the demand slip.
+                                </DialogDescription>
+                            </div>
+                            <div className="flex gap-2">
+                                <label className="cursor-pointer">
+                                    <Input type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFileUpload} />
+                                    <Button type="button" variant="outline" size="sm" className="gap-2" asChild>
+                                        <span><FileUp className="h-4 w-4" /> Upload Slip</span>
+                                    </Button>
+                                </label>
+                                <Button 
+                                    type="button" 
+                                    variant="secondary" 
+                                    size="sm" 
+                                    className="gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200"
+                                    onClick={handleScanWithAI}
+                                    disabled={isScanning || !form.watch('attachmentUrl')}
+                                >
+                                    {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                    AI Scan
+                                </Button>
+                            </div>
+                        </div>
                     </DialogHeader>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto px-1">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-lg bg-card">
+                    
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto px-1 flex-1">
+                        {form.watch('attachmentUrl') && (
+                            <div className="p-3 border rounded-lg bg-muted/5 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded border bg-white overflow-hidden">
+                                        <img src={form.watch('attachmentUrl')} className="h-full w-full object-cover" alt="Attachment" />
+                                    </div>
+                                    <span className="text-sm font-medium">Slip attached for this order.</span>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => form.setValue('attachmentUrl', '')} className="text-destructive">Remove</Button>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-card shadow-sm">
                             <FormField
                                 control={form.control}
                                 name="partyName"
@@ -286,9 +368,9 @@ export function OrderFormDialog({
                                 name="sourceLocation"
                                 render={({ field }) => (
                                     <FormItem>
-                                      <FormLabel>Source (Indore/Gwalior/etc)</FormLabel>
+                                      <FormLabel>Source Hub</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Where to buy from?" {...field} list="source-suggestions" />
+                                            <Input placeholder="Indore/Delhi..." {...field} list="source-suggestions" />
                                         </FormControl>
                                         <datalist id="source-suggestions">
                                             {locationOptions.map((loc) => (
@@ -317,7 +399,7 @@ export function OrderFormDialog({
                                 name="mailDate"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Date of Mail (Optional)</FormLabel>
+                                        <FormLabel>Date of Mail</FormLabel>
                                         <FormControl>
                                             <Input type="date" {...field} />
                                         </FormControl>
@@ -330,11 +412,11 @@ export function OrderFormDialog({
                                 name="pageNo"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Page No.</FormLabel>
+                                        <FormLabel>Register Page No.</FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="number"
-                                                placeholder="Bill page"
+                                                placeholder="Page #"
                                                 {...field}
                                                 value={field.value ?? ''}
                                                 onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
@@ -348,15 +430,19 @@ export function OrderFormDialog({
 
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <h3 className="font-semibold text-lg">Required Items</h3>
+                                <h3 className="font-bold text-lg flex items-center gap-2">
+                                    Required Items 
+                                    <span className="text-xs font-normal text-muted-foreground">({fields.length})</span>
+                                </h3>
                                 <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
+                                    className="h-8"
                                     onClick={() => append({ productName: '', unit: '', quantity: 1, remark: '' })}
                                 >
                                     <PlusCircle className="mr-2 h-4 w-4" />
-                                    Add Another Item
+                                    Add Item
                                 </Button>
                             </div>
                             <ScrollArea className="h-[40vh] pr-4 border rounded-lg p-2 bg-muted/5">
@@ -368,9 +454,12 @@ export function OrderFormDialog({
                             </ScrollArea>
                         </div>
                         
-                        <DialogFooter className="sticky bottom-0 bg-background pt-2">
+                        <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t">
                             <DialogClose asChild><Button type="button" variant="ghost" disabled={isSubmitting}>Cancel</Button></DialogClose>
-                            <Button type="submit" disabled={isSubmitting || fields.length === 0}>{isSubmitting ? 'Saving...' : (isEditing ? 'Update Order' : 'Create Order')}</Button>
+                            <Button type="submit" className="min-w-[150px]" disabled={isSubmitting || fields.length === 0}>
+                                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                {isSubmitting ? 'Saving...' : (isEditing ? 'Update Order' : 'Create Order')}
+                            </Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
@@ -605,8 +694,7 @@ export function PrintPendingSummary({ orders, source }: { orders: OrderWithItems
                                 <td>{item.unit}</td>
                                 <td style={{ fontSize: '11px' }}>{item.depts.join(', ')}</td>
                             </tr>
-                        ))}
-                    </tbody>
+                        </tbody>
                 </table>
                 <div className="footer">
                     Report Generated on: {format(new Date(), 'dd-MM-yyyy HH:mm')}
@@ -615,4 +703,3 @@ export function PrintPendingSummary({ orders, source }: { orders: OrderWithItems
         </>
     );
 }
-
