@@ -30,7 +30,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, Printer, Camera, Sparkles, FileUp, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, Printer, Camera, Sparkles, FileUp, Loader2, Image as ImageIcon } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { safeToDate } from '@/lib/utils';
 import {
@@ -170,6 +170,7 @@ export function OrderFormDialog({
     const { toast } = useToast();
     const isEditing = !!order;
     const [isScanning, setIsScanning] = React.useState(false);
+    const [isUploading, setIsUploading] = React.useState(false);
     
     const form = useForm<CreateOrderSchema>({
         resolver: zodResolver(createOrderSchema),
@@ -227,17 +228,35 @@ export function OrderFormDialog({
     
     const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64String = reader.result as string;
-            form.setValue('attachmentUrl', base64String);
-            toast({ title: "File Attached", description: "You can now use AI to scan this document." });
-        };
-        reader.readAsDataURL(file);
+        setIsUploading(true);
+        const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dt7vbeobv'; // Update this or set in .env
+        const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'unsigned_preset'; // Update this
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', uploadPreset);
+
+        try {
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) throw new Error('Cloudinary upload failed');
+
+            const data = await response.json();
+            form.setValue('attachmentUrl', data.secure_url);
+            toast({ title: "File Uploaded", description: "Slip successfully stored on Cloudinary." });
+        } catch (error) {
+            console.error("Upload Error:", error);
+            toast({ variant: 'destructive', title: "Upload Failed", description: "Please check your Cloudinary settings." });
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const handleScanWithAI = async () => {
@@ -305,14 +324,17 @@ export function OrderFormDialog({
                             <div>
                                 <DialogTitle>{isEditing ? 'Edit Order' : 'Create New Order'}</DialogTitle>
                                 <DialogDescription>
-                                    Enter details manually or use AI to scan a photo of the demand slip.
+                                    Upload a JPG/PDF to Cloudinary. AI will help extract items.
                                 </DialogDescription>
                             </div>
                             <div className="flex gap-2">
                                 <label className="cursor-pointer">
                                     <Input type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFileUpload} />
-                                    <Button type="button" variant="outline" size="sm" className="gap-2" asChild>
-                                        <span><FileUp className="h-4 w-4" /> Upload Slip</span>
+                                    <Button type="button" variant="outline" size="sm" className="gap-2" asChild disabled={isUploading}>
+                                        <span>
+                                            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+                                            {isUploading ? 'Uploading...' : 'Upload Slip'}
+                                        </span>
                                     </Button>
                                 </label>
                                 <Button 
@@ -321,7 +343,7 @@ export function OrderFormDialog({
                                     size="sm" 
                                     className="gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200"
                                     onClick={handleScanWithAI}
-                                    disabled={isScanning || !form.watch('attachmentUrl')}
+                                    disabled={isScanning || !form.watch('attachmentUrl') || isUploading}
                                 >
                                     {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                                     AI Scan
@@ -334,10 +356,14 @@ export function OrderFormDialog({
                         {form.watch('attachmentUrl') && (
                             <div className="p-3 border rounded-lg bg-muted/5 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded border bg-white overflow-hidden">
-                                        <img src={form.watch('attachmentUrl')} className="h-full w-full object-cover" alt="Attachment" />
+                                    <div className="h-10 w-10 rounded border bg-white overflow-hidden flex items-center justify-center">
+                                        {form.watch('attachmentUrl').endsWith('.pdf') ? (
+                                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                        ) : (
+                                            <img src={form.watch('attachmentUrl')} className="h-full w-full object-cover" alt="Attachment" />
+                                        )}
                                     </div>
-                                    <span className="text-sm font-medium">Slip attached for this order.</span>
+                                    <span className="text-sm font-medium text-green-600 truncate max-w-[200px]">Slip successfully attached.</span>
                                 </div>
                                 <Button variant="ghost" size="sm" onClick={() => form.setValue('attachmentUrl', '')} className="text-destructive">Remove</Button>
                             </div>
@@ -455,7 +481,7 @@ export function OrderFormDialog({
                         
                         <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t">
                             <DialogClose asChild><Button type="button" variant="ghost" disabled={isSubmitting}>Cancel</Button></DialogClose>
-                            <Button type="submit" className="min-w-[150px]" disabled={isSubmitting || fields.length === 0}>
+                            <Button type="submit" className="min-w-[150px]" disabled={isSubmitting || fields.length === 0 || isUploading}>
                                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 {isSubmitting ? 'Saving...' : (isEditing ? 'Update Order' : 'Create Order')}
                             </Button>
