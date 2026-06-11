@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -673,7 +672,7 @@ export function PrintPendingSummary({ orders, source }: { orders: OrderWithItems
                 <div className="header">
                     <h2>SHRI ANANDPUR TRUST</h2>
                     <h1>PENDING GOODS SUMMARY</h1>
-                    <p>SOURCE: ${source === 'all' ? 'ALL LOCATIONS' : source.toUpperCase()}</p>
+                    <p>SOURCE: {source === 'all' ? 'ALL LOCATIONS' : source.toUpperCase()}</p>
                 </div>
                 <table>
                     <thead>
@@ -694,7 +693,8 @@ export function PrintPendingSummary({ orders, source }: { orders: OrderWithItems
                                 <td>{item.unit}</td>
                                 <td style={{ fontSize: '11px' }}>{item.depts.join(', ')}</td>
                             </tr>
-                        </tbody>
+                        ))}
+                    </tbody>
                 </table>
                 <div className="footer">
                     Report Generated on: {format(new Date(), 'dd-MM-yyyy HH:mm')}
