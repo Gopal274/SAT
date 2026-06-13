@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -10,7 +9,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Plus, Trash2, History, Info, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon, Paperclip, Eye } from 'lucide-react';
+import { Plus, Trash2, History, Info, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon, Paperclip, Eye, Mail } from 'lucide-react';
 import { format } from 'date-fns';
 
 import type { OrderItem, Product, OrderWithItems, DeliveryRecord } from '@/lib/types';
@@ -34,7 +33,7 @@ import {
   CardHeader,
   CardTitle,
 } from './ui/card';
-import { OrderFormDialog, DeleteOrderDialog, PrintOrderSlip, PrintPendingSummary } from './order-forms';
+import { OrderFormDialog, DeleteOrderDialog, PrintOrderSlip, PrintPendingSummary, MailPendingSummary } from './order-forms';
 import {
   Select,
   SelectContent,
@@ -352,6 +351,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                     <CardDescription>Filter by Source, Department, or Date to manage Trust demands.</CardDescription>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
+                    <MailPendingSummary orders={filteredOrders} source={sourceFilter} />
                     <PrintPendingSummary orders={filteredOrders} source={sourceFilter} />
                     <Button onClick={() => { setEditingOrder(null); setIsOrderFormOpen(true); }}>
                         <Plus className="mr-2 h-4 w-4" /> Create Order

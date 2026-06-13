@@ -30,7 +30,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, Printer, Camera, Sparkles, FileUp, Loader2, Image as ImageIcon } from 'lucide-react';
+import { PlusCircle, Trash2, Printer, Camera, Sparkles, FileUp, Loader2, Image as ImageIcon, Mail } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { safeToDate } from '@/lib/utils';
 import {
@@ -741,5 +741,62 @@ export function PrintPendingSummary({ orders, source }: { orders: OrderWithItems
                 </div>
             </div>
         </>
+    );
+}
+
+export function MailPendingSummary({ orders, source }: { orders: OrderWithItems[], source: string }) {
+    const pendingItems = React.useMemo(() => {
+        const items: Array<{ productName: string; unit: string; pendingQty: number; depts: string[] }> = [];
+        
+        orders.forEach(order => {
+            order.items.forEach(item => {
+                const pending = Math.max(0, item.quantity - (item.receivedQuantity || 0));
+                if (pending > 0 && item.status !== 'cancelled') {
+                    const existing = items.find(i => i.productName.toLowerCase() === item.productName.toLowerCase() && i.unit.toLowerCase() === item.unit.toLowerCase());
+                    if (existing) {
+                        existing.pendingQty += pending;
+                        if (!existing.depts.includes(order.partyName)) {
+                            existing.depts.push(order.partyName);
+                        }
+                    } else {
+                        items.push({
+                            productName: item.productName,
+                            unit: item.unit,
+                            pendingQty: pending,
+                            depts: [order.partyName]
+                        });
+                    }
+                }
+            });
+        });
+        
+        return items.sort((a, b) => a.productName.localeCompare(b.productName));
+    }, [orders]);
+
+    const handleMail = () => {
+        const dateStr = format(new Date(), 'dd-MM-yyyy');
+        const subject = encodeURIComponent(`Pending Goods Demand - ${source === 'all' ? 'All Locations' : source} - ${dateStr}`);
+        
+        let body = `SHRI ANANDPUR TRUST\nPENDING GOODS SUMMARY\nSOURCE: ${source === 'all' ? 'ALL LOCATIONS' : source.toUpperCase()}\nGenerated on: ${dateStr}\n\n`;
+        body += `S.N. | ITEM NAME | PENDING QTY | UNIT | DEPARTMENTS\n`;
+        body += `------------------------------------------------------------\n`;
+        
+        pendingItems.forEach((item, i) => {
+            body += `${i + 1}. ${item.productName} | ${item.pendingQty} | ${item.unit} | ${item.depts.join(', ')}\n`;
+        });
+        
+        body += `\n------------------------------------------------------------\n`;
+        body += `Please arrange these items for the Trust as soon as possible.\n`;
+        
+        window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
+    };
+
+    if (pendingItems.length === 0) return null;
+
+    return (
+        <Button variant="outline" size="sm" className="gap-2 text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100" onClick={handleMail}>
+            <Mail className="h-4 w-4" />
+            Mail Pending List (${source === 'all' ? 'All' : source})
+        </Button>
     );
 }
