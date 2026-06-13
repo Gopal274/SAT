@@ -1,4 +1,3 @@
-
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
@@ -6,6 +5,7 @@ import { FirebaseClientProvider } from '@/firebase';
 import React from 'react';
 import { ThemeProvider } from '@/components/theme-provider';
 import Link from 'next/link';
+import { ChatAssistant } from '@/components/chat-assistant';
 
 export const metadata: Metadata = {
   title: 'Rate Record',
@@ -75,6 +75,7 @@ export default function RootLayout({
               </div>
               <AppFooter />
               <Toaster />
+              <ChatAssistant />
           </FirebaseClientProvider>
         </ThemeProvider>
       </body>
