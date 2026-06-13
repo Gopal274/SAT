@@ -38,9 +38,6 @@ const normalizeName = (name: string): string => {
     return name.toLowerCase().replace(/[\s\/-]/g, '');
 }
 
-/**
- * Safely converts Firestore Timestamp or other date formats to JS Date.
- */
 function toDate(val: any): Date {
     if (!val) return new Date();
     if (val instanceof Date) return val;
@@ -260,9 +257,17 @@ export const getAllOrdersWithItems = async (): Promise<OrderWithItems[]> => {
     for (const oDoc of snapshot.docs) {
         const data = oDoc.data();
         const items = await getOrderItems(oDoc.id);
+        // Calculate total amount based on items if not already stored
+        const calculatedTotal = items.reduce((sum, item) => {
+            const itemRate = item.rate || 0;
+            const itemGst = item.gst || 0;
+            return sum + (item.quantity * itemRate * (1 + itemGst / 100));
+        }, 0);
+
         results.push({ 
             id: oDoc.id, 
             ...data, 
+            totalAmount: data.totalAmount || calculatedTotal,
             orderDate: toDate(data.orderDate),
             mailDate: data.mailDate ? toDate(data.mailDate) : undefined,
             createdAt: toDate(data.createdAt), 
@@ -334,31 +339,42 @@ export const deleteDeliveryRecord = async (orderId: string, itemId: string, logI
 export const createOrder = async (orderData: CreateOrderSchema): Promise<OrderWithItems> => {
     const db = await getDb();
     const { partyName, sourceLocation, orderDate, mailDate, status, items, pageNo, attachmentUrl } = orderData;
+    
+    let totalAmount = 0;
+    const itemsWithCalc = items.map(item => {
+        const itemRate = item.rate || 0;
+        const itemGst = item.gst || 0;
+        totalAmount += (item.quantity * itemRate * (1 + itemGst / 100));
+        return item;
+    });
+
     const newOrderRef = await addDoc(collection(db, ORDERS_COLLECTION), {
         partyName, 
         sourceLocation: sourceLocation || '', 
         orderDate: new Date(orderDate), 
         mailDate: mailDate ? new Date(mailDate) : null,
         status, 
-        totalAmount: 0, 
+        totalAmount, 
         pageNo, 
         attachmentUrl: attachmentUrl || null,
         createdAt: serverTimestamp()
     });
     const batch = writeBatch(db);
-    items.forEach(item => {
+    itemsWithCalc.forEach(item => {
         const iRef = doc(collection(newOrderRef, ORDER_ITEMS_SUBCOLLECTION));
         batch.set(iRef, { 
             productName: item.productName, 
             unit: item.unit, 
             quantity: item.quantity, 
             remark: item.remark || '',
+            rate: item.rate || 0,
+            gst: item.gst || 0,
             status: 'pending', 
             receivedQuantity: 0 
         });
     });
     await batch.commit();
-    return { id: newOrderRef.id, ...orderData, items: [], createdAt: new Date(), totalAmount: 0 } as any;
+    return { id: newOrderRef.id, ...orderData, totalAmount, items: [], createdAt: new Date() } as any;
 };
 
 export const updateOrder = async (orderId: string, orderData: CreateOrderSchema): Promise<void> => {
@@ -367,23 +383,38 @@ export const updateOrder = async (orderId: string, orderData: CreateOrderSchema)
     const { partyName, sourceLocation, orderDate, mailDate, items, pageNo, attachmentUrl } = orderData;
 
     await runTransaction(db, async (transaction) => {
+        let totalAmount = 0;
+        const itemsWithCalc = items.map(item => {
+            const itemRate = item.rate || 0;
+            const itemGst = item.gst || 0;
+            totalAmount += (item.quantity * itemRate * (1 + itemGst / 100));
+            return item;
+        });
+
         transaction.update(orderRef, {
             partyName,
             sourceLocation: sourceLocation || '',
             orderDate: new Date(orderDate),
             mailDate: mailDate ? new Date(mailDate) : null,
             pageNo,
+            totalAmount,
             attachmentUrl: attachmentUrl || null,
         });
 
         const itemsSnapshot = await getDocs(collection(orderRef, ORDER_ITEMS_SUBCOLLECTION));
         const existingItems = itemsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        for (const item of items) {
+        for (const item of itemsWithCalc) {
             const existing = existingItems.find(ei => (ei as any).productName === item.productName);
             if (existing) {
                 const iRef = doc(db, ORDERS_COLLECTION, orderId, ORDER_ITEMS_SUBCOLLECTION, existing.id);
-                transaction.update(iRef, { unit: item.unit, quantity: item.quantity, remark: item.remark || '' });
+                transaction.update(iRef, { 
+                    unit: item.unit, 
+                    quantity: item.quantity, 
+                    remark: item.remark || '',
+                    rate: item.rate || 0,
+                    gst: item.gst || 0
+                });
             } else {
                 const iRef = doc(collection(orderRef, ORDER_ITEMS_SUBCOLLECTION));
                 transaction.set(iRef, { 
@@ -391,6 +422,8 @@ export const updateOrder = async (orderId: string, orderData: CreateOrderSchema)
                     unit: item.unit, 
                     quantity: item.quantity, 
                     remark: item.remark || '',
+                    rate: item.rate || 0,
+                    gst: item.gst || 0,
                     status: 'pending', 
                     receivedQuantity: 0 
                 });
@@ -398,7 +431,7 @@ export const updateOrder = async (orderId: string, orderData: CreateOrderSchema)
         }
 
         for (const ei of existingItems) {
-            const stillExists = items.some(i => i.productName === (ei as any).productName);
+            const stillExists = itemsWithCalc.some(i => i.productName === (ei as any).productName);
             if (!stillExists) {
                 const iRef = doc(db, ORDERS_COLLECTION, orderId, ORDER_ITEMS_SUBCOLLECTION, ei.id);
                 transaction.delete(iRef);

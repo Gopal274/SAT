@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -9,7 +10,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Plus, Trash2, History, Info, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon, Paperclip, Eye, Mail } from 'lucide-react';
+import { Plus, Trash2, History, Info, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon, Paperclip, Eye, Mail, IndianRupee, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 
 import type { OrderItem, Product, OrderWithItems, DeliveryRecord } from '@/lib/types';
@@ -48,6 +49,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
+import { Badge } from './ui/badge';
 
 function ItemStatusChanger({ orderId, item }: { orderId: string, item: OrderItem }) {
     const [isUpdating, setIsUpdating] = React.useState(false);
@@ -209,7 +211,7 @@ function AttachmentViewer({ url }: { url?: string }) {
     const [isOpen, setIsOpen] = React.useState(false);
     if (!url) return null;
 
-    const isPdf = url.startsWith('data:application/pdf');
+    const isPdf = url.includes('/auto/upload') && url.endsWith('.pdf');
 
     return (
         <>
@@ -220,14 +222,14 @@ function AttachmentViewer({ url }: { url?: string }) {
                             <Paperclip className="h-4 w-4" />
                         </Button>
                     </TooltipTrigger>
-                    <TooltipContent>View Original Demand Slip</TooltipContent>
+                    <TooltipContent>View Attachment</TooltipContent>
                 </Tooltip>
             </TooltipProvider>
 
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogContent className="max-w-4xl max-h-[90vh]">
                     <DialogHeader>
-                        <DialogTitle>Original Demand Slip Attachment</DialogTitle>
+                        <DialogTitle>Attachment Viewer</DialogTitle>
                     </DialogHeader>
                     <div className="flex-1 overflow-auto flex justify-center bg-muted/20 rounded-lg p-2">
                         {isPdf ? (
@@ -315,18 +317,19 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
     return result;
   }, [allOrders, sourceFilter, deptFilter, statusFilter, globalFilter, sortBy, startDate, endDate]);
 
+  const financialSummary = React.useMemo(() => {
+      return filteredOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+  }, [filteredOrders]);
+
   const columns: ColumnDef<OrderWithItems>[] = React.useMemo(() => [
     { id: 'serialNumber', header: 'S. No.' },
     { accessorKey: 'partyName', header: 'Department' },
     { id: 'orderItem', header: 'Order Item' },
     { id: 'quantity', header: 'Demand Qty' },
-    { id: 'received', header: 'Received Qty' },
+    { id: 'cost', header: () => <div className="text-right">Est. Total</div> },
     { accessorKey: 'orderDate', header: 'Date' },
-    { accessorKey: 'mailDate', header: 'Date of Mail' },
-    { accessorKey: 'pageNo', header: 'Page No.' },
     { accessorKey: 'sourceLocation', header: 'Source' },
     { id: 'status', header: 'Status' },
-    { id: 'remarks', header: 'Remarks' },
     { id: 'actions', header: () => <div className="text-center">Actions</div> },
   ], []);
 
@@ -341,6 +344,8 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
 
   const sortedRows = table.getSortedRowModel().rows;
 
+  const formatCurrency = (val: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val);
+
   return (
     <>
       <Card>
@@ -348,7 +353,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <CardTitle>Orders & Supply Tracking</CardTitle>
-                    <CardDescription>Filter by Source, Department, or Date to manage Trust demands.</CardDescription>
+                    <CardDescription>Manage and track the financial value of Trust demands.</CardDescription>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <MailPendingSummary orders={filteredOrders} source={sourceFilter} />
@@ -360,6 +365,22 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
             </div>
 
             <Separator className="my-4" />
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 mb-4 rounded-xl bg-primary/5 border border-primary/10 no-print">
+                <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold uppercase text-primary/60 tracking-wider">Filtered Orders</span>
+                    <div className="text-2xl font-black">{filteredOrders.length}</div>
+                </div>
+                <div className="flex flex-col gap-1 md:col-span-2">
+                    <span className="text-[10px] font-bold uppercase text-primary/60 tracking-wider">Estimated Total Value (Filtered)</span>
+                    <div className="text-2xl font-black text-primary">{formatCurrency(financialSummary)}</div>
+                </div>
+                <div className="flex items-center justify-end">
+                    <Badge variant="outline" className="bg-white/50 border-primary/20 text-primary">
+                        <Wallet className="mr-1.5 h-3 w-3" /> Costing Active
+                    </Badge>
+                </div>
+            </div>
 
             <div className="space-y-4 no-print">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -467,7 +488,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                 setEndDate('');
                                 setSortBy('date-desc');
                             }} className="h-9 text-xs text-muted-foreground hover:text-destructive">
-                                <X className="mr-1 h-3 w-3" /> Clear Filters & Date Range
+                                <X className="mr-1 h-3 w-3" /> Clear Filters
                             </Button>
                         )}
                     </div>
@@ -500,12 +521,10 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                         <TableRow key={order.id}>
                                             <TableCell className="text-center border-r font-medium">{orderIndex + 1}</TableCell>
                                             <TableCell className="border-r whitespace-nowrap">{order.partyName}</TableCell>
-                                            <TableCell colSpan={3} className="text-muted-foreground italic border-r">No matching items</TableCell>
+                                            <TableCell colSpan={2} className="text-muted-foreground italic border-r">No items</TableCell>
+                                            <TableCell className="text-right border-r font-bold">{formatCurrency(order.totalAmount || 0)}</TableCell>
                                             <TableCell className="border-r whitespace-nowrap">{format(safeToDate(order.orderDate), 'dd/MM/yy')}</TableCell>
-                                            <TableCell className="border-r whitespace-nowrap text-muted-foreground">{order.mailDate ? format(safeToDate(order.mailDate), 'dd/MM/yy') : '-'}</TableCell>
-                                            <TableCell className="text-center border-r">{order.pageNo ?? '-'}</TableCell>
                                             <TableCell className="border-r whitespace-nowrap text-muted-foreground">{order.sourceLocation || '-'}</TableCell>
-                                            <TableCell className="border-r"></TableCell>
                                             <TableCell className="border-r"></TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex items-center justify-center gap-1">
@@ -519,113 +538,109 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                     );
                                 }
                                 
-                                return items.map((item, itemIndex) => (
-                                    <TableRow key={item.id} className={cn(itemIndex === items.length - 1 && "border-b-2")}>
-                                        {itemIndex === 0 && (
-                                            <>
-                                                <TableCell rowSpan={rowSpan} className="align-top pt-4 text-center border-r font-bold bg-muted/20">
-                                                    {orderIndex + 1}
-                                                </TableCell>
-                                                <TableCell rowSpan={rowSpan} className="align-top pt-4 border-r whitespace-nowrap font-medium">
-                                                    {order.partyName}
-                                                </TableCell>
-                                            </>
-                                        )}
-                                        <TableCell className="border-r whitespace-nowrap font-semibold">
-                                            <div className="flex items-center gap-1">
-                                                {item.productName}
-                                                {item.deliveries && item.deliveries.some(d => d.remark) && (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild><Info className="h-3 w-3 text-blue-500 cursor-help" /></TooltipTrigger>
-                                                            <TooltipContent>Has remarks in delivery history</TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="border-r whitespace-nowrap">
-                                            {item.quantity} <span className="text-xs text-muted-foreground">{item.unit}</span>
-                                        </TableCell>
-                                        <TableCell className="border-r">
-                                            <div className="flex items-center gap-2">
-                                                <DeliveryManager orderId={order.id} item={item} />
-                                                <div className="flex flex-col text-[10px] leading-tight">
-                                                    <span className="text-muted-foreground">Left:</span>
-                                                    <span className={cn(
-                                                        "font-bold",
-                                                        (item.quantity - (item.receivedQuantity || 0)) > 0 ? "text-orange-600" : "text-green-600"
-                                                    )}>
-                                                        {Math.max(0, item.quantity - (item.receivedQuantity || 0))}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        {itemIndex === 0 && (
-                                            <>
-                                                <TableCell rowSpan={rowSpan} className="align-top pt-4 border-r whitespace-nowrap text-muted-foreground">
-                                                    {format(safeToDate(order.orderDate), 'dd/MM/yy')}
-                                                </TableCell>
-                                                <TableCell rowSpan={rowSpan} className="align-top pt-4 border-r whitespace-nowrap text-muted-foreground">
-                                                    {order.mailDate ? format(safeToDate(order.mailDate), 'dd/MM/yy') : '-'}
-                                                </TableCell>
-                                                <TableCell rowSpan={rowSpan} className="align-top pt-4 text-center border-r font-mono">
-                                                    {order.pageNo ?? '-'}
-                                                </TableCell>
-                                                <TableCell rowSpan={rowSpan} className="align-top pt-4 border-r whitespace-nowrap text-muted-foreground italic">
-                                                    {order.sourceLocation || '-'}
-                                                </TableCell>
-                                            </>
-                                        )}
-                                        <TableCell className="border-r">
-                                            <ItemStatusChanger orderId={order.id} item={item} />
-                                        </TableCell>
-                                        <TableCell className="border-r whitespace-nowrap text-xs italic text-muted-foreground">
-                                            {item.remark || '-'}
-                                        </TableCell>
-                                        {itemIndex === 0 && (
-                                            <TableCell rowSpan={rowSpan} className="align-top pt-4 text-center">
-                                                <div className="flex items-center justify-center gap-1">
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <AttachmentViewer url={order.attachmentUrl} />
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>View Attachment</p></TooltipContent>
-                                                        </Tooltip>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <PrintOrderSlip order={order} />
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Print Demand Slip</p></TooltipContent>
-                                                        </Tooltip>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={() => { setEditingOrder(order); setIsOrderFormOpen(true); }}>
-                                                                    <Edit className="h-4 w-4" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Edit Order Header/Items</p></TooltipContent>
-                                                        </Tooltip>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => setDeletingOrder(order)}>
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Delete Order</p></TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
+                                return items.map((item, itemIndex) => {
+                                    const itemTotal = (item.rate || 0) * (item.quantity || 0) * (1 + (item.gst || 0) / 100);
+                                    
+                                    return (
+                                        <TableRow key={item.id} className={cn(itemIndex === items.length - 1 && "border-b-2")}>
+                                            {itemIndex === 0 && (
+                                                <>
+                                                    <TableCell rowSpan={rowSpan} className="align-top pt-4 text-center border-r font-bold bg-muted/20">
+                                                        {orderIndex + 1}
+                                                    </TableCell>
+                                                    <TableCell rowSpan={rowSpan} className="align-top pt-4 border-r whitespace-nowrap font-medium">
+                                                        {order.partyName}
+                                                    </TableCell>
+                                                </>
+                                            )}
+                                            <TableCell className="border-r whitespace-nowrap">
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold text-sm">{item.productName}</span>
+                                                    {item.remark && <span className="text-[10px] italic text-muted-foreground">"{item.remark}"</span>}
                                                 </div>
                                             </TableCell>
-                                        )}
-                                    </TableRow>
-                                ));
+                                            <TableCell className="border-r whitespace-nowrap">
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold">{item.quantity} {item.unit}</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <DeliveryManager orderId={order.id} item={item} />
+                                                        <span className={cn("text-[9px] font-bold px-1 rounded", (item.quantity - (item.receivedQuantity || 0)) > 0 ? "text-orange-600 bg-orange-50" : "text-green-600 bg-green-50")}>
+                                                            L: {Math.max(0, item.quantity - (item.receivedQuantity || 0))}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="border-r text-right whitespace-nowrap bg-muted/5">
+                                                <div className="flex flex-col">
+                                                    <span className="font-mono font-bold text-xs">{formatCurrency(itemTotal)}</span>
+                                                    <span className="text-[9px] text-muted-foreground">@{formatCurrency(item.rate || 0)} + {item.gst || 0}%</span>
+                                                </div>
+                                            </TableCell>
+                                            {itemIndex === 0 && (
+                                                <>
+                                                    <TableCell rowSpan={rowSpan} className="align-top pt-4 border-r whitespace-nowrap text-xs font-medium">
+                                                        <div className="flex flex-col">
+                                                            <span>{format(safeToDate(order.orderDate), 'dd/MM/yy')}</span>
+                                                            {order.mailDate && <span className="text-[9px] text-blue-600">Mail: {format(safeToDate(order.mailDate), 'dd/MM/yy')}</span>}
+                                                            {order.pageNo && <span className="text-[9px] text-muted-foreground">Page: {order.pageNo}</span>}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell rowSpan={rowSpan} className="align-top pt-4 border-r whitespace-nowrap italic text-muted-foreground">
+                                                        {order.sourceLocation || '-'}
+                                                    </TableCell>
+                                                </>
+                                            )}
+                                            <TableCell className="border-r">
+                                                <ItemStatusChanger orderId={order.id} item={item} />
+                                            </TableCell>
+                                            {itemIndex === 0 && (
+                                                <TableCell rowSpan={rowSpan} className="align-top pt-4 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <AttachmentViewer url={order.attachmentUrl} />
+                                                                </TooltipTrigger>
+                                                                <TooltipContent><p>View Attachment</p></TooltipContent>
+                                                            </Tooltip>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <PrintOrderSlip order={order} />
+                                                                </TooltipTrigger>
+                                                                <TooltipContent><p>Print Demand Slip</p></TooltipContent>
+                                                            </Tooltip>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={() => { setEditingOrder(order); setIsOrderFormOpen(true); }}>
+                                                                        <Edit className="h-4 w-4" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent><p>Edit Order</p></TooltipContent>
+                                                            </Tooltip>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => setDeletingOrder(order)}>
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent><p>Delete Order</p></TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    </div>
+                                                    <div className="mt-4 pt-4 border-t border-dashed">
+                                                        <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Slip Total</div>
+                                                        <div className="font-mono font-black text-sm text-primary">{formatCurrency(order.totalAmount || 0)}</div>
+                                                    </div>
+                                                </TableCell>
+                                            )}
+                                        </TableRow>
+                                    );
+                                });
                             })
                           ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                                    No orders found. Try adjusting your filters or date range.
+                                    No orders found.
                                 </TableCell>
                             </TableRow>
                           )}

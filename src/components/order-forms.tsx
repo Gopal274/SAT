@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -7,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 
 import { createOrderAction, updateOrderAction, deleteOrderAction } from '@/lib/actions';
-import type { Product, CreateOrderSchema, OrderWithItems } from '@/lib/types';
+import type { Product, CreateOrderSchema, OrderWithItems, ProductWithRates } from '@/lib/types';
 import { createOrderSchema } from '@/lib/types';
 
 import { useToast } from '@/hooks/use-toast';
@@ -30,7 +31,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, Printer, Camera, Sparkles, FileUp, Loader2, Image as ImageIcon, Mail } from 'lucide-react';
+import { PlusCircle, Trash2, Printer, Camera, Sparkles, FileUp, Loader2, Image as ImageIcon, Mail, Calculator } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { safeToDate } from '@/lib/utils';
 import {
@@ -45,11 +46,18 @@ import {
 } from '@/components/ui/alert-dialog';
 import { scanOrder } from '@/ai/flows/scan-order-flow';
 import { Separator } from './ui/separator';
+import { getAllProductsWithRatesAction } from '@/lib/actions';
 
 function OrderItemRow({ index, remove, productOptions }: { index: number; remove: (index: number) => void; productOptions: {value: string; label: string;}[] }) {
-  const { control, setValue } = useFormContext<CreateOrderSchema>();
+  const { control, setValue, watch } = useFormContext<CreateOrderSchema>();
+  const [isFetchingRate, setIsFetchingRate] = React.useState(false);
   
-  const handleProductNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const qty = watch(`items.${index}.quantity`) || 0;
+  const rate = watch(`items.${index}.rate`) || 0;
+  const gst = watch(`items.${index}.gst`) || 0;
+  const rowTotal = qty * rate * (1 + gst / 100);
+
+  const handleProductNameChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
     const allProducts = (control as any)._options.context as Product[];
     const product = allProducts?.find(p => p.name.toLowerCase() === newName.toLowerCase());
@@ -57,6 +65,20 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
     if (product) {
         setValue(`items.${index}.productId`, product.id);
         setValue(`items.${index}.unit`, product.unit);
+        
+        // Fetch real-time latest rate from DB
+        setIsFetchingRate(true);
+        try {
+            const productsWithRates = await getAllProductsWithRatesAction();
+            const fullProduct = productsWithRates.find(p => p.id === product.id);
+            if (fullProduct && fullProduct.rates && fullProduct.rates.length > 0) {
+                const latest = fullProduct.rates[0];
+                setValue(`items.${index}.rate`, latest.rate);
+                setValue(`items.${index}.gst`, latest.gst);
+            }
+        } finally {
+            setIsFetchingRate(false);
+        }
     } else {
         setValue(`items.${index}.productId`, undefined);
     }
@@ -64,13 +86,13 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
 
   return (
     <div className="relative grid grid-cols-12 gap-x-3 gap-y-2 border p-3 rounded-md bg-muted/20">
-        <div className="col-span-12 md:col-span-5">
+        <div className="col-span-12 md:col-span-4">
              <FormField
                 control={control}
                 name={`items.${index}.productName`}
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground">Product Name</FormLabel>
+                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Product Name</FormLabel>
                         <FormControl>
                             <Input 
                                 {...field}
@@ -93,15 +115,30 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
                 )}
             />
         </div>
-        <div className="col-span-4 md:col-span-2">
+        <div className="col-span-4 md:col-span-1">
             <FormField
                 control={control}
                 name={`items.${index}.unit`}
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground">Unit</FormLabel>
+                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Unit</FormLabel>
                         <FormControl>
-                            <Input placeholder="kg/pc" {...field} className="h-8" />
+                            <Input placeholder="kg" {...field} className="h-8 text-center" />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+        </div>
+        <div className="col-span-4 md:col-span-1">
+            <FormField
+                control={control}
+                name={`items.${index}.quantity`}
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Qty</FormLabel>
+                        <FormControl>
+                            <Input type="number" step="any" {...field} className="h-8 text-center" />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -111,27 +148,52 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
         <div className="col-span-4 md:col-span-2">
             <FormField
                 control={control}
-                name={`items.${index}.quantity`}
+                name={`items.${index}.rate`}
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground">Qty</FormLabel>
+                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                            {isFetchingRate ? <Loader2 className="h-2 w-2 animate-spin" /> : 'Rate'}
+                        </FormLabel>
                         <FormControl>
-                            <Input type="number" step="any" {...field} className="h-8" />
+                            <Input type="number" step="any" {...field} value={field.value ?? ''} className="h-8" placeholder="0.00" />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
                 )}
             />
         </div>
-        <div className="col-span-12 md:col-span-2">
+        <div className="col-span-4 md:col-span-1">
+            <FormField
+                control={control}
+                name={`items.${index}.gst`}
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">GST %</FormLabel>
+                        <FormControl>
+                            <Input type="number" step="any" {...field} value={field.value ?? ''} className="h-8 text-center" placeholder="0" />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+        </div>
+        <div className="col-span-6 md:col-span-2">
+            <div className="space-y-2">
+                <span className="text-[10px] uppercase font-bold text-muted-foreground block">Row Total</span>
+                <div className="h-8 flex items-center font-mono font-bold text-xs bg-white/50 border rounded px-2">
+                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(rowTotal)}
+                </div>
+            </div>
+        </div>
+        
+        <div className="col-span-12 md:col-span-11 mt-1">
             <FormField
                 control={control}
                 name={`items.${index}.remark`}
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground">Remark</FormLabel>
                         <FormControl>
-                            <Input placeholder="Note..." {...field} className="h-8" />
+                            <Input placeholder="Add a note for this item..." {...field} className="h-7 text-xs italic bg-transparent border-none shadow-none focus-visible:ring-0 px-0" />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -139,12 +201,12 @@ function OrderItemRow({ index, remove, productOptions }: { index: number; remove
             />
         </div>
 
-        <div className="col-span-2 md:col-span-1 flex items-end justify-end">
+        <div className="absolute top-2 right-2">
             <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                className="h-6 w-6 text-muted-foreground hover:text-destructive"
                 onClick={() => remove(index)}
             >
                 <Trash2 className="h-4 w-4" />
@@ -182,7 +244,7 @@ export function OrderFormDialog({
             status: 'pending',
             pageNo: undefined,
             attachmentUrl: '',
-            items: [{ productName: '', unit: '', quantity: 1, remark: '' }]
+            items: [{ productName: '', unit: '', quantity: 1, remark: '', rate: undefined, gst: undefined }]
         },
         context: allProducts
     });
@@ -191,6 +253,17 @@ export function OrderFormDialog({
         control: form.control,
         name: "items",
     });
+
+    // Calculate total order estimate
+    const items = form.watch('items');
+    const orderTotal = React.useMemo(() => {
+        return items.reduce((sum, item) => {
+            const q = item.quantity || 0;
+            const r = item.rate || 0;
+            const g = item.gst || 0;
+            return sum + (q * r * (1 + g / 100));
+        }, 0);
+    }, [items]);
 
     React.useEffect(() => {
         if (isOpen) {
@@ -208,7 +281,9 @@ export function OrderFormDialog({
                         unit: item.unit,
                         quantity: item.quantity,
                         productId: item.productId,
-                        remark: item.remark || ''
+                        remark: item.remark || '',
+                        rate: item.rate,
+                        gst: item.gst
                     }))
                 });
             } else {
@@ -220,7 +295,7 @@ export function OrderFormDialog({
                     status: 'pending',
                     pageNo: undefined,
                     attachmentUrl: '',
-                    items: [{ productName: '', unit: '', quantity: 1, remark: '' }]
+                    items: [{ productName: '', unit: '', quantity: 1, remark: '', rate: undefined, gst: undefined }]
                 });
             }
         }
@@ -233,13 +308,8 @@ export function OrderFormDialog({
         if (!file) return;
 
         setIsUploading(true);
-        // Prioritize environment variables for configuration
         const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dt7vbeobv'; 
         const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'unsigned_preset'; 
-
-        if (cloudName === 'dt7vbeobv' || uploadPreset === 'unsigned_preset') {
-            console.warn("Cloudinary is using default placeholder values. This may cause upload failures.");
-        }
 
         const formData = new FormData();
         formData.append('file', file);
@@ -254,19 +324,16 @@ export function OrderFormDialog({
             const data = await response.json();
 
             if (!response.ok) {
-                console.error("Cloudinary API Error Response:", data);
-                const errorMessage = data?.error?.message || `API Error: ${response.status} ${response.statusText}`;
-                throw new Error(errorMessage);
+                throw new Error(data?.error?.message || `API Error: ${response.status}`);
             }
 
             form.setValue('attachmentUrl', data.secure_url);
-            toast({ title: "File Uploaded", description: "Slip successfully stored on Cloudinary." });
+            toast({ title: "File Uploaded", description: "Slip successfully stored." });
         } catch (error: any) {
-            console.error("Upload Error:", error);
             toast({ 
                 variant: 'destructive', 
                 title: "Upload Failed", 
-                description: error.message || "Please ensure your Cloudinary settings and 'Unsigned' upload preset are correct." 
+                description: error.message 
             });
         } finally {
             setIsUploading(false);
@@ -276,7 +343,7 @@ export function OrderFormDialog({
     const handleScanWithAI = async () => {
         const photoUrl = form.getValues('attachmentUrl');
         if (!photoUrl) {
-            toast({ variant: 'destructive', title: "No File", description: "Please upload a photo of the list first." });
+            toast({ variant: 'destructive', title: "No File", description: "Please upload a photo first." });
             return;
         }
 
@@ -284,22 +351,36 @@ export function OrderFormDialog({
         try {
             const result = await scanOrder({ photoDataUri: photoUrl });
             if (result.items && result.items.length > 0) {
-                replace(result.items.map(item => ({
-                    productName: item.productName,
-                    unit: item.unit,
-                    quantity: item.quantity,
-                    remark: item.remark
-                })));
+                // For scanned items, we need to match with existing products to get rates
+                const productsWithRates = await getAllProductsWithRatesAction();
+                
+                const itemsWithRates = result.items.map(item => {
+                    const match = productsWithRates.find(p => normalizeName(p.name) === normalizeName(item.productName));
+                    return {
+                        productName: item.productName,
+                        unit: item.unit,
+                        quantity: item.quantity,
+                        remark: item.remark,
+                        rate: match?.rates?.[0]?.rate,
+                        gst: match?.rates?.[0]?.gst
+                    };
+                });
+
+                replace(itemsWithRates);
                 if (result.partyName) form.setValue('partyName', result.partyName);
-                toast({ title: "Scan Complete", description: `Found ${result.items.length} items from your photo.` });
+                toast({ title: "Scan Complete", description: `Found ${result.items.length} items.` });
             }
         } catch (error) {
-            console.error("AI Scan Error:", error);
-            toast({ variant: 'destructive', title: "Scan Failed", description: "Could not read the list. Please ensure the photo is clear." });
+            toast({ variant: 'destructive', title: "Scan Failed", description: "Could not read the list." });
         } finally {
             setIsScanning(false);
         }
     };
+
+    const normalizeName = (name: string): string => {
+        if (!name) return '';
+        return name.toLowerCase().replace(/[\s\/-]/g, '');
+    }
 
     const productOptions = React.useMemo(() => 
         allProducts
@@ -320,7 +401,7 @@ export function OrderFormDialog({
         }
         
         if(result.success) {
-            toast({ title: isEditing ? "Order Updated" : "Order Created", description: `The order has been ${isEditing ? 'updated' : 'saved'} successfully.` });
+            toast({ title: isEditing ? "Order Updated" : "Order Created", description: "Saved successfully." });
             setIsOpen(false);
             form.reset();
         } else {
@@ -332,13 +413,13 @@ export function OrderFormDialog({
     return (
         <Form {...form}>
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col">
+                <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden flex flex-col">
                     <DialogHeader>
                         <div className="flex justify-between items-start">
                             <div>
                                 <DialogTitle>{isEditing ? 'Edit Order' : 'Create New Order'}</DialogTitle>
                                 <DialogDescription>
-                                    Upload a JPG/PDF to Cloudinary. AI will help extract items.
+                                    Manage demands and track estimated costs.
                                 </DialogDescription>
                             </div>
                             <div className="flex gap-2">
@@ -355,7 +436,7 @@ export function OrderFormDialog({
                                     type="button" 
                                     variant="secondary" 
                                     size="sm" 
-                                    className="gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200"
+                                    className="gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200"
                                     onClick={handleScanWithAI}
                                     disabled={isScanning || !form.watch('attachmentUrl') || isUploading}
                                 >
@@ -368,7 +449,7 @@ export function OrderFormDialog({
                     
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto px-1 flex-1">
                         {form.watch('attachmentUrl') && (
-                            <div className="p-3 border rounded-lg bg-muted/5 flex items-center justify-between">
+                            <div className="p-3 border rounded-lg bg-green-50/50 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="h-10 w-10 rounded border bg-white overflow-hidden flex items-center justify-center">
                                         {form.watch('attachmentUrl').endsWith('.pdf') ? (
@@ -377,7 +458,7 @@ export function OrderFormDialog({
                                             <img src={form.watch('attachmentUrl')} className="h-full w-full object-cover" alt="Attachment" />
                                         )}
                                     </div>
-                                    <span className="text-sm font-medium text-green-600 truncate max-w-[200px]">Slip successfully attached.</span>
+                                    <span className="text-sm font-medium text-green-700">Slip successfully attached.</span>
                                 </div>
                                 <Button variant="ghost" size="sm" onClick={() => form.setValue('attachmentUrl', '')} className="text-destructive">Remove</Button>
                             </div>
@@ -389,9 +470,9 @@ export function OrderFormDialog({
                                 name="partyName"
                                 render={({ field }) => (
                                     <FormItem>
-                                      <FormLabel>Department Name</FormLabel>
+                                      <FormLabel className="text-xs uppercase font-bold text-muted-foreground">Department</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Type department..." {...field} list="dept-suggestions" />
+                                            <Input placeholder="Langar / Hospital..." {...field} list="dept-suggestions" />
                                         </FormControl>
                                         <datalist id="dept-suggestions">
                                             {departmentNameOptions.map((dept) => (
@@ -407,7 +488,7 @@ export function OrderFormDialog({
                                 name="sourceLocation"
                                 render={({ field }) => (
                                     <FormItem>
-                                      <FormLabel>Source Hub</FormLabel>
+                                      <FormLabel className="text-xs uppercase font-bold text-muted-foreground">Source Hub</FormLabel>
                                         <FormControl>
                                             <Input placeholder="Indore/Delhi..." {...field} list="source-suggestions" />
                                         </FormControl>
@@ -420,57 +501,40 @@ export function OrderFormDialog({
                                     </FormItem>
                                 )}
                             />
-                            <FormField
-                                control={form.control}
-                                name="orderDate"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Demand Date</FormLabel>
-                                        <FormControl>
-                                            <Input type="date" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="mailDate"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Date of Mail</FormLabel>
-                                        <FormControl>
-                                            <Input type="date" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                             <FormField
-                                control={form.control}
-                                name="pageNo"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Register Page No.</FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                type="number"
-                                                placeholder="Page #"
-                                                {...field}
-                                                value={field.value ?? ''}
-                                                onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                            <div className="grid grid-cols-2 gap-2">
+                                <FormField
+                                    control={form.control}
+                                    name="orderDate"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs uppercase font-bold text-muted-foreground">Demand Date</FormLabel>
+                                            <FormControl>
+                                                <Input type="date" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="mailDate"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs uppercase font-bold text-muted-foreground">Mail Date</FormLabel>
+                                            <FormControl>
+                                                <Input type="date" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
                         </div>
 
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                                <h3 className="font-bold text-lg flex items-center gap-2">
-                                    Required Items 
+                            <div className="flex justify-between items-center bg-muted/30 p-2 rounded-t-lg border-x border-t">
+                                <h3 className="font-bold text-sm flex items-center gap-2 px-2">
+                                    ITEMS & PRICING 
                                     <span className="text-xs font-normal text-muted-foreground">({fields.length})</span>
                                 </h3>
                                 <Button
@@ -478,13 +542,13 @@ export function OrderFormDialog({
                                     variant="outline"
                                     size="sm"
                                     className="h-8"
-                                    onClick={() => append({ productName: '', unit: '', quantity: 1, remark: '' })}
+                                    onClick={() => append({ productName: '', unit: '', quantity: 1, remark: '', rate: undefined, gst: undefined })}
                                 >
                                     <PlusCircle className="mr-2 h-4 w-4" />
-                                    Add Item
+                                    Add Row
                                 </Button>
                             </div>
-                            <ScrollArea className="h-[40vh] pr-4 border rounded-lg p-2 bg-muted/5">
+                            <ScrollArea className="h-[40vh] pr-4 border rounded-b-lg p-2 bg-muted/5">
                                 <div className="space-y-3">
                                     {fields.map((field, index) => (
                                         <OrderItemRow key={field.id} index={index} remove={remove} productOptions={productOptions} />
@@ -493,6 +557,16 @@ export function OrderFormDialog({
                             </ScrollArea>
                         </div>
                         
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-primary/5">
+                            <div className="flex items-center gap-2 text-sm">
+                                <Calculator className="h-4 w-4 text-primary" />
+                                <span className="font-medium text-muted-foreground uppercase">Estimated Order Total (Incl. GST):</span>
+                            </div>
+                            <div className="text-2xl font-black text-primary">
+                                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(orderTotal)}
+                            </div>
+                        </div>
+
                         <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t">
                             <DialogClose asChild><Button type="button" variant="ghost" disabled={isSubmitting}>Cancel</Button></DialogClose>
                             <Button type="submit" className="min-w-[150px]" disabled={isSubmitting || fields.length === 0 || isUploading}>
@@ -538,7 +612,7 @@ export function DeleteOrderDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete this order?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will permanently delete the order for <span className="font-bold text-foreground">{order?.partyName}</span> and all its item status records.
+            This will permanently delete the order for <span className="font-bold text-foreground">{order?.partyName}</span> and all its item records.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
