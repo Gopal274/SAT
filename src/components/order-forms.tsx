@@ -233,8 +233,13 @@ export function OrderFormDialog({
         if (!file) return;
 
         setIsUploading(true);
+        // Prioritize environment variables for configuration
         const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dt7vbeobv'; 
         const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'unsigned_preset'; 
+
+        if (cloudName === 'dt7vbeobv' || uploadPreset === 'unsigned_preset') {
+            console.warn("Cloudinary is using default placeholder values. This may cause upload failures.");
+        }
 
         const formData = new FormData();
         formData.append('file', file);
@@ -250,7 +255,8 @@ export function OrderFormDialog({
 
             if (!response.ok) {
                 console.error("Cloudinary API Error Response:", data);
-                throw new Error(data.error?.message || 'Cloudinary upload failed');
+                const errorMessage = data?.error?.message || `API Error: ${response.status} ${response.statusText}`;
+                throw new Error(errorMessage);
             }
 
             form.setValue('attachmentUrl', data.secure_url);
