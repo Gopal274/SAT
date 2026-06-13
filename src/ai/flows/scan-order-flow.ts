@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI flow to extract order items from a photo or PDF of a handwritten/printed list.
@@ -15,7 +14,7 @@ const ScanOrderInputSchema = z.object({
   photoDataUri: z
     .string()
     .describe(
-      "A photo of an order list, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A photo of an order list, as a public URL or a data URI (which must include a MIME type and use Base64 encoding)."
     ),
 });
 export type ScanOrderInput = z.infer<typeof ScanOrderInputSchema>;

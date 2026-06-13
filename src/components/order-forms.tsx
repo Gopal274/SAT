@@ -233,8 +233,8 @@ export function OrderFormDialog({
         if (!file) return;
 
         setIsUploading(true);
-        const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dt7vbeobv'; // Update this or set in .env
-        const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'unsigned_preset'; // Update this
+        const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dt7vbeobv'; 
+        const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'unsigned_preset'; 
 
         const formData = new FormData();
         formData.append('file', file);
@@ -246,14 +246,22 @@ export function OrderFormDialog({
                 body: formData,
             });
 
-            if (!response.ok) throw new Error('Cloudinary upload failed');
-
             const data = await response.json();
+
+            if (!response.ok) {
+                console.error("Cloudinary API Error Response:", data);
+                throw new Error(data.error?.message || 'Cloudinary upload failed');
+            }
+
             form.setValue('attachmentUrl', data.secure_url);
             toast({ title: "File Uploaded", description: "Slip successfully stored on Cloudinary." });
-        } catch (error) {
+        } catch (error: any) {
             console.error("Upload Error:", error);
-            toast({ variant: 'destructive', title: "Upload Failed", description: "Please check your Cloudinary settings." });
+            toast({ 
+                variant: 'destructive', 
+                title: "Upload Failed", 
+                description: error.message || "Please ensure your Cloudinary settings and 'Unsigned' upload preset are correct." 
+            });
         } finally {
             setIsUploading(false);
         }
