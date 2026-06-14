@@ -1,3 +1,4 @@
+
 'use server';
 
 import { 
@@ -19,7 +20,7 @@ import {
 } from 'firebase/firestore';
 
 import { getSdks } from '@/firebase/server';
-import type { Product, Rate, ProductSchema, UpdateProductSchema, ProductWithRates, BatchProductSchema, Order, OrderItem, CreateOrderSchema, OrderWithItems, DeliveryRecord } from './types';
+import type { Product, Rate, ProductSchema, UpdateProductSchema, ProductWithRates, BatchProductSchema, Order, OrderItem, CreateOrderSchema, OrderWithItems, DeliveryRecord, DispatchDetailsSchema } from './types';
 
 async function getDb() {
   const { firestore } = getSdks();
@@ -250,7 +251,14 @@ export const getOrderItems = async (orderId: string): Promise<OrderItem[]> => {
         const data = iDoc.data();
         const deliveries = await getDeliveryRecords(orderId, iDoc.id);
         const receivedQuantity = deliveries.reduce((sum, d) => sum + d.quantity, 0);
-        return { id: iDoc.id, ...data, receivedQuantity, deliveries } as any;
+        return { 
+          id: iDoc.id, 
+          ...data, 
+          receivedQuantity, 
+          deliveries,
+          receivedBySenderDate: data.receivedBySenderDate ? toDate(data.receivedBySenderDate) : undefined,
+          dispatchedAt: data.dispatchedAt ? toDate(data.dispatchedAt) : undefined,
+        } as any;
     }));
     
     return results;
@@ -466,4 +474,21 @@ export const deleteOrder = async (orderId: string): Promise<void> => {
 export const updateOrderItemStatus = async (orderId: string, itemId: string, status: OrderItem['status']): Promise<void> => {
     const db = await getDb();
     await updateDoc(doc(db, ORDERS_COLLECTION, orderId, ORDER_ITEMS_SUBCOLLECTION, itemId), { status });
+};
+
+export const updateOrderItemDispatchDetails = async (orderId: string, itemId: string, details: DispatchDetailsSchema): Promise<void> => {
+  const db = await getDb();
+  const itemRef = doc(db, ORDERS_COLLECTION, orderId, ORDER_ITEMS_SUBCOLLECTION, itemId);
+  
+  const updateData: any = {
+    status: details.status,
+    dispatchedBy: details.dispatchedBy,
+    driverName: details.driverName,
+    dispatchReason: details.dispatchReason,
+  };
+
+  if (details.receivedBySenderDate) updateData.receivedBySenderDate = new Date(details.receivedBySenderDate);
+  if (details.dispatchedAt) updateData.dispatchedAt = new Date(details.dispatchedAt);
+
+  await updateDoc(itemRef, updateData);
 };

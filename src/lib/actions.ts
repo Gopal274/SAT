@@ -1,3 +1,4 @@
+
 'use server';
 
 import { revalidatePath } from 'next/cache';
@@ -13,12 +14,13 @@ import {
   createOrder as createOrderInDb,
   updateOrder as updateOrderInDb,
   updateOrderItemStatus as updateOrderItemStatusInDb,
+  updateOrderItemDispatchDetails as updateOrderItemDispatchDetailsInDb,
   getAllOrdersWithItems as getAllOrdersWithItemsFromDb,
   deleteOrder as deleteOrderFromDb,
   logDeliveryRecord as logDeliveryRecordToDb,
   deleteDeliveryRecord as deleteDeliveryRecordFromDb,
 } from './data';
-import type { Rate, UpdateProductSchema, ProductWithRates, BatchProductSchema, CreateOrderSchema, OrderItem, OrderWithItems } from './types';
+import type { Rate, UpdateProductSchema, ProductWithRates, BatchProductSchema, CreateOrderSchema, OrderItem, OrderWithItems, DispatchDetailsSchema } from './types';
 import { productSchema } from './types';
 import { z } from 'zod';
 import { google } from 'googleapis';
@@ -44,7 +46,7 @@ async function handleAction<T>(
 }
 
 const mainPaths = ['/', '/dashboard'];
-const orderPaths = ['/orders'];
+const orderPaths = ['/orders', '/goods-sending'];
 
 export async function addProductAction(formData: ProductFormData) {
   const result = await handleAction(async () => {
@@ -119,6 +121,11 @@ export async function deleteOrderAction(orderId: string) {
 export async function updateOrderItemStatusAction(orderId: string, itemId: string, status: OrderItem['status']) {
     const result = await handleAction(() => updateOrderItemStatusInDb(orderId, itemId, status), orderPaths);
     return result.success ? { success: true, message: 'Item status updated.' } : { success: false, message: result.message };
+}
+
+export async function updateOrderItemDispatchDetailsAction(orderId: string, itemId: string, details: DispatchDetailsSchema) {
+  const result = await handleAction(() => updateOrderItemDispatchDetailsInDb(orderId, itemId, details), orderPaths);
+  return result.success ? { success: true, message: 'Dispatch details updated.' } : { success: false, message: result.message };
 }
 
 export async function logDeliveryAction(orderId: string, itemId: string, quantity: number, date: string, remark: string) {

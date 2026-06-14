@@ -77,6 +77,16 @@ export const orderItemSchema = z.object({
 });
 export type OrderItemSchema = z.infer<typeof orderItemSchema>;
 
+export const dispatchDetailsSchema = z.object({
+  receivedBySenderDate: z.string().optional(),
+  dispatchedAt: z.string().optional(),
+  dispatchedBy: z.string().optional(),
+  driverName: z.string().optional(),
+  dispatchReason: z.enum(['purchased', 'sample', 'repairing', 'exchange', 'return', 'replacement', 'new_stock']).default('purchased'),
+  status: z.enum(['pending', 'received', 'dispatched', 'cancelled']).default('dispatched'),
+});
+export type DispatchDetailsSchema = z.infer<typeof dispatchDetailsSchema>;
+
 export const createOrderSchema = z.object({
   partyName: z.string().min(1, "Department name is required."),
   sourceLocation: z.string().optional(),
@@ -109,6 +119,13 @@ export type OrderItem = {
   gst?: number;
   status: 'pending' | 'received' | 'dispatched' | 'cancelled';
   deliveries?: DeliveryRecord[];
+  
+  // New logistics fields
+  receivedBySenderDate?: Date | string;
+  dispatchedAt?: Date | string;
+  dispatchedBy?: string;
+  driverName?: string;
+  dispatchReason?: string;
 };
 
 export type Order = {
