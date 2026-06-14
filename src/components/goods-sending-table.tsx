@@ -19,7 +19,11 @@ import {
   User,
   Info,
   ChevronRight,
-  Plus
+  Plus,
+  Printer,
+  Sparkles,
+  FileUp,
+  UserCheck
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -50,14 +54,123 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from './ui/form';
+import { scanDispatch } from '@/ai/flows/scan-dispatch-flow';
 
 interface GoodsSendingTableProps {
   allOrders: OrderWithItems[];
 }
 
+function PrintGatePass({ item }: { item: any }) {
+    const printRef = React.useRef<HTMLDivElement>(null);
+
+    const handlePrint = () => {
+        const content = printRef.current?.innerHTML;
+        const win = window.open('', '', 'height=700,width=900');
+        if (!win) return;
+        
+        win.document.write(`
+            <html>
+                <head>
+                    <title>Samagri Gate Pass - ${item.partyName}</title>
+                    <style>
+                        body { font-family: sans-serif; padding: 40px; border: 4px solid black; min-height: 90vh; }
+                        .header { text-align: center; border-bottom: 2px solid black; padding-bottom: 15px; margin-bottom: 20px; }
+                        .header h1 { margin: 0; font-size: 32px; text-decoration: underline; }
+                        .header h2 { margin: 5px 0; font-size: 18px; }
+                        .form-row { display: flex; gap: 20px; margin-bottom: 20px; font-size: 18px; }
+                        .field { flex: 1; border-bottom: 1px dotted black; padding-bottom: 5px; }
+                        .field label { font-weight: bold; margin-right: 10px; }
+                        table { width: 100%; border-collapse: collapse; margin: 30px 0; }
+                        th, td { border: 2px solid black; padding: 15px; text-align: left; font-size: 18px; }
+                        th { background-color: #f0f0f0; }
+                        .footer { margin-top: 80px; display: flex; justify-content: space-between; align-items: flex-end; }
+                        .sig { text-align: center; width: 250px; }
+                        .sig-line { border-top: 2px solid black; margin-top: 60px; padding-top: 5px; font-weight: bold; }
+                        .stamp { border: 3px solid blue; color: blue; padding: 15px; width: fit-content; text-transform: uppercase; font-weight: bold; transform: rotate(-5deg); margin: 20px; }
+                    </style>
+                </head>
+                <body>
+                    ${content}
+                </body>
+            </html>
+        `);
+        win.document.close();
+        win.print();
+    };
+
+    const getReasonLabel = (reason?: string) => {
+        if (!reason) return '-';
+        const labels: Record<string, string> = {
+          purchased: 'Purchased',
+          sample: 'As Sample',
+          repairing: 'For Repairing',
+          exchange: 'For Exchange',
+          return: 'For Return',
+          replacement: 'For Replacement',
+          new_stock: 'New Stock'
+        };
+        return labels[reason] || reason;
+    };
+
+    return (
+        <>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={handlePrint}>
+                <Printer className="h-4 w-4" />
+            </Button>
+            <div ref={printRef} className="hidden">
+                <div className="header">
+                    <h2>SHRI ANANDPUR TRUST</h2>
+                    <h1>SAMAGRI GATE PASS</h1>
+                </div>
+                <div className="form-row">
+                    <div className="field"><label>Department (Vibhaag):</label> {item.partyName}</div>
+                    <div className="field"><label>Date (Dinaank):</label> {item.dispatchedAt ? format(safeToDate(item.dispatchedAt), 'dd-MM-yyyy') : format(new Date(), 'dd-MM-yyyy')}</div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style={{ width: '60%' }}>Item Description (Saman ka Vivaran)</th>
+                            <th style={{ width: '15%' }}>Qty</th>
+                            <th style={{ width: '25%' }}>Reason for Dispatch</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{item.productName}</td>
+                            <td>{item.quantity} {item.unit}</td>
+                            <td>{getReasonLabel(item.dispatchReason)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div className="form-row" style={{ marginTop: '40px' }}>
+                    <div className="field"><label>Destination (Saman Kahan Bhejna Hai):</label> {item.sourceLocation || item.destination || '-'}</div>
+                </div>
+                <div className="form-row">
+                    <div className="field"><label>To Whom (Saman Kisko Bhejna Hai):</label> {item.recipientName || '-'}</div>
+                </div>
+                <div className="stamp">
+                    SHRI ANANDPUR TRUST<br/>
+                    STORE DEPARTMENT<br/>
+                    GATE PASS ISSUED
+                </div>
+                <div className="footer">
+                    <div className="sig">
+                        <div className="sig-line">Sign. of Department Incharge</div>
+                    </div>
+                    <div className="sig">
+                        <div className="sig-line">Sign. of Authorized Person</div>
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+}
+
 function QuickDispatchDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isUploading, setIsUploading] = React.useState(false);
+  const [isScanning, setIsScanning] = React.useState(false);
 
   const form = useForm<QuickDispatchSchema>({
     resolver: zodResolver(quickDispatchSchema),
@@ -66,8 +179,47 @@ function QuickDispatchDialog({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       dispatchedAt: format(new Date(), "yyyy-MM-dd"),
       receivedBySenderDate: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
       quantity: 1,
+      recipientName: '',
     }
   });
+
+  const handleFileUploadAndScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', 'unsigned_preset');
+
+      try {
+          const response = await fetch(`https://api.cloudinary.com/v1_1/dt7vbeobv/auto/upload`, {
+              method: 'POST',
+              body: formData,
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error("Upload failed");
+
+          setIsScanning(true);
+          const result = await scanDispatch({ photoDataUri: data.secure_url });
+          
+          if (result.partyName) form.setValue('partyName', result.partyName);
+          if (result.productName) form.setValue('productName', result.productName);
+          if (result.quantity) form.setValue('quantity', result.quantity);
+          if (result.unit) form.setValue('unit', result.unit);
+          if (result.destination) form.setValue('destination', result.destination);
+          if (result.recipientName) form.setValue('recipientName', result.recipientName);
+          if (result.dispatchReason) form.setValue('dispatchReason', result.dispatchReason as any);
+          if (result.dispatchedAt) form.setValue('dispatchedAt', result.dispatchedAt);
+
+          toast({ title: 'Gate Pass Scanned', description: 'Form fields populated from slip.' });
+      } catch (error: any) {
+          toast({ variant: 'destructive', title: 'Scan Failed', description: error.message });
+      } finally {
+          setIsUploading(false);
+          setIsScanning(false);
+      }
+  };
 
   const onSubmit = async (data: QuickDispatchSchema) => {
     setIsSubmitting(true);
@@ -84,31 +236,47 @@ function QuickDispatchDialog({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Record New Dispatch Movement</DialogTitle>
-          <DialogDescription>
-            Log a physical sending event (e.g. sample, repair, or new purchase).
-          </DialogDescription>
+          <div className="flex justify-between items-start">
+              <div>
+                <DialogTitle>Record New Dispatch Movement</DialogTitle>
+                <DialogDescription>
+                    Log a physical sending event (e.g. sample, repair, or new purchase).
+                </DialogDescription>
+              </div>
+              <label className="cursor-pointer">
+                  <Input type="file" accept="image/*" className="hidden" onChange={handleFileUploadAndScan} />
+                  <Button type="button" variant="outline" size="sm" className="gap-2 bg-purple-50 text-purple-700 border-purple-200" asChild disabled={isUploading || isScanning}>
+                      <span>
+                          {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : isScanning ? <Sparkles className="h-4 w-4 animate-pulse" /> : <Sparkles className="h-4 w-4" />}
+                          AI Scan Gate Pass
+                      </span>
+                  </Button>
+              </label>
+          </div>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <FormField control={form.control} name="partyName" render={({ field }) => (
-                <FormItem><FormLabel className="text-xs font-bold uppercase">Destination Department</FormLabel><FormControl><Input placeholder="e.g. Langar" {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel className="text-xs font-bold uppercase">Source Department (Workshop/Store)</FormLabel><FormControl><Input placeholder="e.g. Truck Workshop" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="destination" render={({ field }) => (
-                <FormItem><FormLabel className="text-xs font-bold uppercase">Where to Send (Target Hub)</FormLabel><FormControl><Input placeholder="e.g. Indore / Delhi" {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel className="text-xs font-bold uppercase">Destination Hub (Kahan Bhejna Hai)</FormLabel><FormControl><Input placeholder="e.g. Ashoknagar / Delhi" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="recipientName" render={({ field }) => (
+                <FormItem><FormLabel className="text-xs font-bold uppercase">Recipient (Kisko Bhejna Hai)</FormLabel><FormControl><Input placeholder="e.g. Jyoti Mahatma Ji" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="productName" render={({ field }) => (
-                <FormItem><FormLabel className="text-xs font-bold uppercase">Item Name</FormLabel><FormControl><Input placeholder="e.g. Ghee / Computer" {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel className="text-xs font-bold uppercase">Item Name</FormLabel><FormControl><Input placeholder="e.g. Rotary Pump" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <div className="grid grid-cols-2 gap-2">
                 <FormField control={form.control} name="quantity" render={({ field }) => (
                   <FormItem><FormLabel className="text-xs font-bold uppercase">Qty</FormLabel><FormControl><Input type="number" step="any" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="unit" render={({ field }) => (
-                  <FormItem><FormLabel className="text-xs font-bold uppercase">Unit</FormLabel><FormControl><Input placeholder="kg / pc" {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormLabel className="text-xs font-bold uppercase">Unit</FormLabel><FormControl><Input placeholder="kg / pc / nag" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
               </div>
               <FormField control={form.control} name="receivedBySenderDate" render={({ field }) => (
@@ -141,13 +309,15 @@ function QuickDispatchDialog({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   <FormMessage />
                 </FormItem>
               )} />
-              <FormField control={form.control} name="remark" render={({ field }) => (
-                <FormItem><FormLabel className="text-xs font-bold uppercase">Remarks</FormLabel><FormControl><Input placeholder="Optional notes..." {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
+              <div className="md:col-span-2">
+                <FormField control={form.control} name="remark" render={({ field }) => (
+                    <FormItem><FormLabel className="text-xs font-bold uppercase">Remarks</FormLabel><FormControl><Input placeholder="Optional notes..." {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+              </div>
             </div>
             <DialogFooter className="pt-4">
               <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
-              <Button type="submit" disabled={isSubmitting} className="gap-2">
+              <Button type="submit" disabled={isSubmitting || isScanning} className="gap-2">
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />}
                 Log Dispatch Movement
               </Button>
@@ -181,6 +351,7 @@ function DispatchFormDialog({
       dispatchedAt: item.dispatchedAt ? format(safeToDate(item.dispatchedAt), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
       dispatchedBy: item.dispatchedBy || '',
       driverName: item.driverName || '',
+      recipientName: item.recipientName || '',
       dispatchReason: (item.dispatchReason as any) || 'purchased',
     }
   });
@@ -243,6 +414,19 @@ function DispatchFormDialog({
                     <FormLabel className="text-xs font-bold uppercase">Dispatched By (Person/Sender)</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g. Rahul/Purchaser" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="recipientName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs font-bold uppercase">Recipient (Kisko Bhejna Hai)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Jyoti Mahatma Ji" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -348,7 +532,8 @@ export function GoodsSendingTable({ allOrders }: GoodsSendingTableProps) {
       const matchesSearch = 
         item.productName.toLowerCase().includes(filterText.toLowerCase()) ||
         item.partyName.toLowerCase().includes(filterText.toLowerCase()) ||
-        (item.driverName || '').toLowerCase().includes(filterText.toLowerCase());
+        (item.driverName || '').toLowerCase().includes(filterText.toLowerCase()) ||
+        (item.recipientName || '').toLowerCase().includes(filterText.toLowerCase());
 
       const matchesStatus = 
         statusFilter === 'all' ||
@@ -381,7 +566,7 @@ export function GoodsSendingTable({ allOrders }: GoodsSendingTableProps) {
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="space-y-1">
               <CardTitle className="text-2xl font-black tracking-tight text-primary">Logistics Management</CardTitle>
-              <CardDescription>Comprehensive tracking of item movement, drivers, and dispatch reasons.</CardDescription>
+              <CardDescription>Comprehensive tracking of item movement, drivers, and gate passes.</CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button onClick={() => setIsQuickDispatchOpen(true)} className="gap-2">
@@ -390,7 +575,7 @@ export function GoodsSendingTable({ allOrders }: GoodsSendingTableProps) {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search Item, Dept or Driver..."
+                  placeholder="Item, Dept, Driver or Recipient..."
                   value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
                   className="pl-10 w-full sm:w-[300px] h-10 border-primary/20 shadow-inner"
@@ -425,6 +610,7 @@ export function GoodsSendingTable({ allOrders }: GoodsSendingTableProps) {
                   <TableHead className="w-[200px]">Sender Details</TableHead>
                   <TableHead className="w-[200px]">Dispatch Info</TableHead>
                   <TableHead className="w-[150px]">Reason & Driver</TableHead>
+                  <TableHead>Recipient</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -491,6 +677,13 @@ export function GoodsSendingTable({ allOrders }: GoodsSendingTableProps) {
                               </div>
                           </div>
                       </TableCell>
+
+                      <TableCell>
+                          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                              <UserCheck className="h-3.5 w-3.5" />
+                              <span>{item.recipientName || 'Not Specified'}</span>
+                          </div>
+                      </TableCell>
                       
                       <TableCell>
                         {item.status === 'received' && (
@@ -516,28 +709,31 @@ export function GoodsSendingTable({ allOrders }: GoodsSendingTableProps) {
                       </TableCell>
                       
                       <TableCell className="text-right">
-                          <Button 
-                            size="sm" 
-                            variant={item.status === 'received' ? 'default' : 'outline'}
-                            className={cn(
-                              "gap-2 font-bold shadow-sm transition-all",
-                              item.status === 'dispatched' ? "opacity-50" : ""
-                            )}
-                            onClick={() => setDispatchItem(item)}
-                          >
-                            {item.status === 'dispatched' ? (
-                              <Info className="h-4 w-4" />
-                            ) : (
-                              <Truck className="h-4 w-4" />
-                            )}
-                            {item.status === 'dispatched' ? 'Details' : 'Dispatch'}
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                              {item.status === 'dispatched' && <PrintGatePass item={item} />}
+                              <Button 
+                                size="sm" 
+                                variant={item.status === 'received' ? 'default' : 'outline'}
+                                className={cn(
+                                  "gap-2 font-bold shadow-sm transition-all",
+                                  item.status === 'dispatched' ? "opacity-50" : ""
+                                )}
+                                onClick={() => setDispatchItem(item)}
+                              >
+                                {item.status === 'dispatched' ? (
+                                  <Info className="h-4 w-4" />
+                                ) : (
+                                  <Truck className="h-4 w-4" />
+                                )}
+                                {item.status === 'dispatched' ? 'Details' : 'Dispatch'}
+                              </Button>
+                          </div>
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-64 text-center">
+                    <TableCell colSpan={7} className="h-64 text-center">
                       <div className="flex flex-col items-center justify-center space-y-4">
                         <div className="bg-muted p-4 rounded-full">
                           <Truck className="h-12 w-12 text-muted-foreground/30" />

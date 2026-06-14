@@ -484,6 +484,7 @@ export const updateOrderItemDispatchDetails = async (orderId: string, itemId: st
     status: details.status,
     dispatchedBy: details.dispatchedBy,
     driverName: details.driverName,
+    recipientName: details.recipientName,
     dispatchReason: details.dispatchReason,
   };
 
@@ -515,6 +516,7 @@ export const createQuickDispatch = async (data: QuickDispatchSchema): Promise<vo
         dispatchedAt: new Date(data.dispatchedAt),
         dispatchedBy: data.dispatchedBy,
         driverName: data.driverName,
+        recipientName: data.recipientName,
         dispatchReason: data.dispatchReason,
         remark: data.remark || ''
     });

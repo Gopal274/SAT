@@ -82,6 +82,7 @@ export const dispatchDetailsSchema = z.object({
   dispatchedAt: z.string().optional(),
   dispatchedBy: z.string().optional(),
   driverName: z.string().optional(),
+  recipientName: z.string().optional(),
   dispatchReason: z.enum(['purchased', 'sample', 'repairing', 'exchange', 'return', 'replacement', 'new_stock']).default('purchased'),
   status: z.enum(['pending', 'received', 'dispatched', 'cancelled']).default('dispatched'),
 });
@@ -109,6 +110,7 @@ export const quickDispatchSchema = z.object({
   dispatchedAt: z.string().min(1, "Dispatch date is required."),
   dispatchedBy: z.string().min(1, "Sender name is required."),
   driverName: z.string().min(1, "Driver name is required."),
+  recipientName: z.string().optional(),
   dispatchReason: z.enum(['purchased', 'sample', 'repairing', 'exchange', 'return', 'replacement', 'new_stock']).default('purchased'),
   remark: z.string().optional(),
 });
@@ -140,6 +142,7 @@ export type OrderItem = {
   dispatchedAt?: Date | string;
   dispatchedBy?: string;
   driverName?: string;
+  recipientName?: string;
   dispatchReason?: string;
 };
 
