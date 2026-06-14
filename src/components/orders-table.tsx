@@ -321,11 +321,11 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
     { accessorKey: 'partyName', header: 'Department' },
     { id: 'orderItem', header: 'Order Item' },
     { id: 'quantity', header: 'Demand Qty' },
-    { id: 'cost', header: () => <div className="text-right">Est. Total</div> },
     { accessorKey: 'orderDate', header: 'Date' },
     { accessorKey: 'sourceLocation', header: 'Source' },
     { id: 'status', header: 'Status' },
     { id: 'actions', header: () => <div className="text-center">Actions</div> },
+    { id: 'cost', header: () => <div className="text-right">Est. Total</div> },
   ], []);
 
   const table = useReactTable({
@@ -501,7 +501,6 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                             <TableCell className="text-center border-r font-medium">{orderIndex + 1}</TableCell>
                                             <TableCell className="border-r whitespace-nowrap">{order.partyName}</TableCell>
                                             <TableCell colSpan={2} className="text-muted-foreground italic border-r">No items</TableCell>
-                                            <TableCell className="text-right border-r font-bold">{formatCurrency(order.totalAmount || 0)}</TableCell>
                                             <TableCell className="border-r whitespace-nowrap">{format(safeToDate(order.orderDate), 'dd/MM/yy')}</TableCell>
                                             <TableCell className="border-r whitespace-nowrap text-muted-foreground">{order.sourceLocation || '-'}</TableCell>
                                             <TableCell className="border-r"></TableCell>
@@ -513,6 +512,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletingOrder(order)}><Trash2 className="h-4 w-4" /></Button>
                                                 </div>
                                             </TableCell>
+                                            <TableCell className="text-right border-r font-bold">{formatCurrency(order.totalAmount || 0)}</TableCell>
                                         </TableRow>
                                     );
                                 }
@@ -549,12 +549,6 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                                     </div>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="border-r text-right whitespace-nowrap bg-muted/5">
-                                                <div className="flex flex-col">
-                                                    <span className="font-mono font-bold text-xs">{formatCurrency(itemTotal)}</span>
-                                                    <span className="text-[9px] text-muted-foreground">@{formatCurrency(item.rate || 0)} + {item.gst || 0}%</span>
-                                                </div>
-                                            </TableCell>
                                             {itemIndex === 0 && (
                                                 <>
                                                     <TableCell rowSpan={rowSpan} className="align-top pt-4 border-r whitespace-nowrap text-xs font-medium">
@@ -573,7 +567,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                                 <ItemStatusChanger orderId={order.id} item={item} />
                                             </TableCell>
                                             {itemIndex === 0 && (
-                                                <TableCell rowSpan={rowSpan} className="align-top pt-4 text-center">
+                                                <TableCell rowSpan={rowSpan} className="align-top pt-4 text-center border-r">
                                                     <div className="flex items-center justify-center gap-1">
                                                         <TooltipProvider>
                                                             <Tooltip>
@@ -612,6 +606,12 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                                                     </div>
                                                 </TableCell>
                                             )}
+                                            <TableCell className="text-right whitespace-nowrap bg-muted/5">
+                                                <div className="flex flex-col">
+                                                    <span className="font-mono font-bold text-xs">{formatCurrency(itemTotal)}</span>
+                                                    <span className="text-[9px] text-muted-foreground">@{formatCurrency(item.rate || 0)} + {item.gst || 0}%</span>
+                                                </div>
+                                            </TableCell>
                                         </TableRow>
                                     );
                                 });
