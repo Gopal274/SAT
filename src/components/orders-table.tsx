@@ -9,11 +9,11 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Plus, Trash2, History, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon, Paperclip, Mail, IndianRupee, Wallet } from 'lucide-react';
+import { Plus, Trash2, History, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon, Paperclip, Mail, IndianRupee, Wallet, Upload, MoreVertical, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 
 import type { OrderItem, Product, OrderWithItems } from '@/lib/types';
-import { updateOrderItemStatusAction, logDeliveryAction, deleteDeliveryRecordAction } from '@/lib/actions';
+import { updateOrderItemStatusAction, logDeliveryAction, deleteDeliveryRecordAction, exportOrdersToGoogleSheetAction } from '@/lib/actions';
 
 import { safeToDate, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,9 @@ import { Textarea } from './ui/textarea';
 import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useFirebase } from '@/firebase';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 function ItemStatusChanger({ orderId, item }: { orderId: string, item: OrderItem }) {
     const [isUpdating, setIsUpdating] = React.useState(false);
@@ -259,6 +262,49 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
   const [editingOrder, setEditingOrder] = React.useState<OrderWithItems | null>(null);
   const [deletingOrder, setDeletingOrder] = React.useState<OrderWithItems | null>(null);
 
+  const { auth } = useFirebase();
+  const { toast } = useToast();
+
+  const handleExportToSheet = async () => {
+    if (!auth.currentUser) {
+        toast({ title: 'Error', description: 'You must be signed in to export.', variant: 'destructive'});
+        return;
+    }
+
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/drive.file');
+    provider.addScope('https://www.googleapis.com/auth/spreadsheets');
+    
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        const accessToken = credential?.accessToken;
+
+        if (!accessToken) throw new Error("Could not retrieve access token.");
+        
+        toast({ title: 'Exporting Orders...', description: 'Pushing data to Google Sheets.' });
+        const actionResult = await exportOrdersToGoogleSheetAction(accessToken);
+        
+        if (actionResult.success) {
+            toast({ 
+                title: 'Success!', 
+                description: actionResult.message,
+                action: actionResult.link ? (
+                    <a href={actionResult.link} target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm">
+                            <ExternalLink className="mr-2 h-4 w-4" /> View Sheet
+                        </Button>
+                    </a>
+                ) : undefined,
+            });
+        } else {
+            toast({ title: 'Export Failed', description: actionResult.message, variant: 'destructive'});
+        }
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Auth Failed', description: error.message });
+    }
+  };
+
   const uniqueSources = React.useMemo(() => {
     const sources = new Set(allOrders.map(o => o.sourceLocation).filter(Boolean));
     return Array.from(sources).sort();
@@ -353,6 +399,18 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
                 <div className="flex items-center gap-2 flex-wrap">
                     <MailPendingSummary orders={filteredOrders} source={sourceFilter} />
                     <PrintPendingSummary orders={filteredOrders} source={sourceFilter} />
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                                <MoreVertical className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={handleExportToSheet}>
+                                <Upload className="mr-2 h-4 w-4" /> Export to Google Sheet
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button onClick={() => { setEditingOrder(null); setIsOrderFormOpen(true); }}>
                         <Plus className="mr-2 h-4 w-4" /> Create Order
                     </Button>

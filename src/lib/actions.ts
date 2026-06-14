@@ -156,6 +156,58 @@ function convertDataForSheet(allProductsWithRates: ProductWithRates[]): (string 
     return [headers, ...rows];
 }
 
+function convertOrdersForSheet(allOrders: OrderWithItems[]): (string | number | null)[][] {
+    const headers = [
+        'Order Date', 
+        'Mail Date',
+        'Department', 
+        'Source', 
+        'Page No', 
+        'Product Name', 
+        'Demand Qty', 
+        'Received Qty', 
+        'Unit', 
+        'Rate', 
+        'GST %', 
+        'Item Total', 
+        'Status'
+    ];
+    
+    const excelEpoch = new Date('1899-12-30').getTime();
+    
+    const rows = allOrders.flatMap(order => {
+        return order.items.map(item => {
+            const orderDate = order.orderDate ? new Date(order.orderDate as string) : null;
+            const mailDate = order.mailDate ? new Date(order.mailDate as string) : null;
+            
+            const orderDateSerial = orderDate ? (orderDate.getTime() - excelEpoch) / (24 * 60 * 60 * 1000) : null;
+            const mailDateSerial = mailDate ? (mailDate.getTime() - excelEpoch) / (24 * 60 * 60 * 1000) : null;
+            
+            const rate = item.rate || 0;
+            const gst = item.gst || 0;
+            const itemTotal = item.quantity * rate * (1 + gst / 100);
+
+            return [
+                orderDateSerial,
+                mailDateSerial,
+                order.partyName,
+                order.sourceLocation || '',
+                order.pageNo || '',
+                item.productName,
+                item.quantity,
+                item.receivedQuantity || 0,
+                item.unit,
+                rate,
+                gst,
+                itemTotal,
+                item.status
+            ];
+        });
+    });
+    
+    return [headers, ...rows];
+}
+
 async function findOrCreateSheet(drive: any, sheets: any, name: string): Promise<{ spreadsheetId: string; spreadsheetUrl: string }> {
   const searchResponse = await drive.files.list({ q: `name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`, fields: 'files(id, webViewLink)' });
   if (searchResponse.data.files?.length) {
@@ -178,6 +230,33 @@ export async function exportToGoogleSheetAction(accessToken: string) {
     await sheets.spreadsheets.values.update({ spreadsheetId, range: 'Sheet1', valueInputOption: 'USER_ENTERED', requestBody: { values } });
     return { success: true, message: `Data exported!`, link: spreadsheetUrl };
   } catch (error: any) { return { success: false, message: error.message }; }
+}
+
+export async function exportOrdersToGoogleSheetAction(accessToken: string) {
+    try {
+      const oAuth2Client = new OAuth2Client();
+      oAuth2Client.setCredentials({ access_token: accessToken });
+      const drive = google.drive({ version: 'v3', auth: oAuth2Client });
+      const sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
+      
+      const { spreadsheetId, spreadsheetUrl } = await findOrCreateSheet(drive, sheets, 'Trust Orders Live Data');
+      
+      const allOrders = await getAllOrdersWithItemsFromDb();
+      const values = convertOrdersForSheet(allOrders);
+      
+      // We use Sheet1 for exports
+      await sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Sheet1' });
+      await sheets.spreadsheets.values.update({ 
+          spreadsheetId, 
+          range: 'Sheet1', 
+          valueInputOption: 'USER_ENTERED', 
+          requestBody: { values } 
+      });
+      
+      return { success: true, message: `Orders exported!`, link: spreadsheetUrl };
+    } catch (error: any) { 
+      return { success: false, message: error.message }; 
+    }
 }
 
 export async function importFromGoogleSheetAction(accessToken: string) {
