@@ -31,7 +31,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, Printer, Camera, Sparkles, FileUp, Loader2, Image as ImageIcon, Mail, Calculator } from 'lucide-react';
+import { PlusCircle, Trash2, Printer, Camera, Sparkles, FileUp, Loader2, Image as ImageIcon, Mail, Calculator, Paperclip } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { safeToDate } from '@/lib/utils';
 import {
@@ -428,21 +428,23 @@ export function OrderFormDialog({
                                     <Button type="button" variant="outline" size="sm" className="gap-2" asChild disabled={isUploading}>
                                         <span>
                                             {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
-                                            {isUploading ? 'Uploading...' : 'Upload Slip'}
+                                            {isUploading ? 'Uploading...' : 'Upload Slip (Optional)'}
                                         </span>
                                     </Button>
                                 </label>
-                                <Button 
-                                    type="button" 
-                                    variant="secondary" 
-                                    size="sm" 
-                                    className="gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                    onClick={handleScanWithAI}
-                                    disabled={isScanning || !form.watch('attachmentUrl') || isUploading}
-                                >
-                                    {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                                    AI Scan
-                                </Button>
+                                {form.watch('attachmentUrl') && (
+                                    <Button 
+                                        type="button" 
+                                        variant="secondary" 
+                                        size="sm" 
+                                        className="gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                        onClick={handleScanWithAI}
+                                        disabled={isScanning || isUploading}
+                                    >
+                                        {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                        AI Scan
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     </DialogHeader>
@@ -453,12 +455,12 @@ export function OrderFormDialog({
                                 <div className="flex items-center gap-3">
                                     <div className="h-10 w-10 rounded border bg-white overflow-hidden flex items-center justify-center">
                                         {form.watch('attachmentUrl').endsWith('.pdf') ? (
-                                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                            <Paperclip className="h-6 w-6 text-muted-foreground" />
                                         ) : (
                                             <img src={form.watch('attachmentUrl')} className="h-full w-full object-cover" alt="Attachment" />
                                         )}
                                     </div>
-                                    <span className="text-sm font-medium text-green-700">Slip successfully attached.</span>
+                                    <span className="text-sm font-medium text-green-700">Slip attached for reference.</span>
                                 </div>
                                 <Button variant="ghost" size="sm" onClick={() => form.setValue('attachmentUrl', '')} className="text-destructive">Remove</Button>
                             </div>

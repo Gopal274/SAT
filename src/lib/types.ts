@@ -84,7 +84,7 @@ export const createOrderSchema = z.object({
   mailDate: z.string().optional(),
   status: z.enum(['pending', 'completed', 'cancelled']),
   pageNo: z.coerce.number().int().min(1, "Page number is required.").optional(),
-  attachmentUrl: z.string().optional().describe("Data URI or URL of the attached JPG/PDF"),
+  attachmentUrl: z.string().optional().or(z.literal("")).describe("Data URI or URL of the attached JPG/PDF"),
   items: z.array(orderItemSchema).min(1, "Order must contain at least one item."),
 });
 export type CreateOrderSchema = z.infer<typeof createOrderSchema>;
