@@ -466,7 +466,7 @@ export function OrderFormDialog({
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-card shadow-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 border rounded-lg bg-card shadow-sm">
                             <FormField
                                 control={form.control}
                                 name="partyName"
@@ -499,6 +499,19 @@ export function OrderFormDialog({
                                             <option key={loc} value={loc} />
                                             ))}
                                         </datalist>
+                                      <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="pageNo"
+                                render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-xs uppercase font-bold text-muted-foreground">Page No</FormLabel>
+                                        <FormControl>
+                                            <Input type="number" placeholder="Optional" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} />
+                                        </FormControl>
                                       <FormMessage />
                                     </FormItem>
                                 )}

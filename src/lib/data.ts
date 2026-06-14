@@ -369,7 +369,7 @@ export const createOrder = async (orderData: CreateOrderSchema): Promise<OrderWi
         mailDate: mailDate ? new Date(mailDate) : null,
         status, 
         totalAmount, 
-        pageNo, 
+        pageNo: pageNo ?? null,
         attachmentUrl: attachmentUrl || null,
         createdAt: serverTimestamp()
     });
@@ -410,7 +410,7 @@ export const updateOrder = async (orderId: string, orderData: CreateOrderSchema)
             sourceLocation: sourceLocation || '',
             orderDate: new Date(orderDate),
             mailDate: mailDate ? new Date(mailDate) : null,
-            pageNo,
+            pageNo: pageNo ?? null,
             totalAmount,
             attachmentUrl: attachmentUrl || null,
         });
