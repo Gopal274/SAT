@@ -68,23 +68,26 @@ const analyzeSupplyFlow = ai.defineFlow(
     outputSchema: SupplyAnalysisOutputSchema,
   },
   async input => {
-    let retries = 3;
-    let delay = 1000;
+    let retries = 4;
+    let delay = 1500;
 
     while (retries > 0) {
       try {
         const {output} = await prompt(input);
         return output!;
       } catch (error: any) {
-        // If it's a 503 (Service Unavailable) error, wait and retry.
-        // Otherwise, rethrow immediately as it might be a validation error.
-        if (retries === 1 || !error.message?.includes('503')) throw error;
+        const isRetryable = error.message?.includes('503') || 
+                          error.message?.includes('429') || 
+                          error.message?.includes('overloaded') ||
+                          error.message?.includes('deadline');
+
+        if (retries === 1 || !isRetryable) throw error;
         
         await new Promise(resolve => setTimeout(resolve, delay));
         retries--;
-        delay *= 2; // Exponential backoff
+        delay *= 2; 
       }
     }
-    throw new Error('AI analysis is temporarily unavailable. Please try again later.');
+    throw new Error('AI analysis is temporarily unavailable due to high demand. Please try again later.');
   }
 );

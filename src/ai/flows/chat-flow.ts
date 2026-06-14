@@ -71,8 +71,8 @@ const trustChatFlow = ai.defineFlow(
     outputSchema: z.string(),
   },
   async (input) => {
-    let retries = 3;
-    let delay = 1000;
+    let retries = 4;
+    let delay = 1500;
 
     while (retries > 0) {
       try {
@@ -93,12 +93,18 @@ const trustChatFlow = ai.defineFlow(
 
         return response.text;
       } catch (error: any) {
-        if (retries === 1 || !error.message?.includes('503')) throw error;
+        const isRetryable = error.message?.includes('503') || 
+                          error.message?.includes('429') || 
+                          error.message?.includes('overloaded') ||
+                          error.message?.includes('deadline');
+                          
+        if (retries === 1 || !isRetryable) throw error;
+        
         await new Promise(resolve => setTimeout(resolve, delay));
         retries--;
         delay *= 2;
       }
     }
-    return "I am currently experiencing heavy traffic. Please try again in a moment.";
+    return "I am currently experiencing heavy traffic while connecting to the Trust database. Please try again in a few seconds.";
   }
 );
