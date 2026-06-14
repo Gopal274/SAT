@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI flow to estimate the future price of a product based on its history.
@@ -76,7 +75,20 @@ const estimatePriceFlow = ai.defineFlow(
     outputSchema: EstimatePriceOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    let retries = 3;
+    let delay = 1000;
+
+    while (retries > 0) {
+      try {
+        const {output} = await prompt(input);
+        return output!;
+      } catch (error: any) {
+        if (retries === 1 || !error.message?.includes('503')) throw error;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retries--;
+        delay *= 2;
+      }
+    }
+    throw new Error('AI Service Unavailable after multiple retries.');
   }
 );

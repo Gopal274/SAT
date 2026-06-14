@@ -71,21 +71,34 @@ const trustChatFlow = ai.defineFlow(
     outputSchema: z.string(),
   },
   async (input) => {
-    const response = await ai.generate({
-      system: `You are the Shri Anandpur Trust Store Assistant. 
-      You help management track supplies and product rates.
-      
-      RULES:
-      1. Use the provided tools to check LIVE data before answering.
-      2. If asked about pending items, look for items where receivedQuantity < quantity.
-      3. Keep answers professional and respectful.
-      4. If you don't find data for a specific product, mention that it might not be recorded yet.
-      5. Today is ${new Date().toLocaleDateString()}.`,
-      prompt: input.message,
-      messages: input.history,
-      tools: [getProductRatesTool, getOrdersStatusTool],
-    });
+    let retries = 3;
+    let delay = 1000;
 
-    return response.text;
+    while (retries > 0) {
+      try {
+        const response = await ai.generate({
+          system: `You are the Shri Anandpur Trust Store Assistant. 
+          You help management track supplies and product rates.
+          
+          RULES:
+          1. Use the provided tools to check LIVE data before answering.
+          2. If asked about pending items, look for items where receivedQuantity < quantity.
+          3. Keep answers professional and respectful.
+          4. If you don't find data for a specific product, mention that it might not be recorded yet.
+          5. Today is ${new Date().toLocaleDateString()}.`,
+          prompt: input.message,
+          messages: input.history,
+          tools: [getProductRatesTool, getOrdersStatusTool],
+        });
+
+        return response.text;
+      } catch (error: any) {
+        if (retries === 1 || !error.message?.includes('503')) throw error;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retries--;
+        delay *= 2;
+      }
+    }
+    return "I am currently experiencing heavy traffic. Please try again in a moment.";
   }
 );

@@ -64,7 +64,20 @@ const scanOrderFlow = ai.defineFlow(
     outputSchema: ScanOrderOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    let retries = 3;
+    let delay = 1500; // OCR takes longer, give more initial delay
+
+    while (retries > 0) {
+      try {
+        const {output} = await prompt(input);
+        return output!;
+      } catch (error: any) {
+        if (retries === 1 || !error.message?.includes('503')) throw error;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retries--;
+        delay *= 2;
+      }
+    }
+    throw new Error('The AI scanner is currently busy. Please try again in a few seconds.');
   }
 );

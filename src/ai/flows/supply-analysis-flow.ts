@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI flow to analyze the current supply chain status and provide insights.
@@ -69,7 +68,23 @@ const analyzeSupplyFlow = ai.defineFlow(
     outputSchema: SupplyAnalysisOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    let retries = 3;
+    let delay = 1000;
+
+    while (retries > 0) {
+      try {
+        const {output} = await prompt(input);
+        return output!;
+      } catch (error: any) {
+        // If it's a 503 (Service Unavailable) error, wait and retry.
+        // Otherwise, rethrow immediately as it might be a validation error.
+        if (retries === 1 || !error.message?.includes('503')) throw error;
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retries--;
+        delay *= 2; // Exponential backoff
+      }
+    }
+    throw new Error('AI analysis is temporarily unavailable. Please try again later.');
   }
 );
