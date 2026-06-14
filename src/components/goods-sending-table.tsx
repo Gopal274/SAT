@@ -23,7 +23,9 @@ import {
   Printer,
   Sparkles,
   FileUp,
-  UserCheck
+  UserCheck,
+  Paperclip,
+  Eye
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -55,9 +57,50 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from './ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from './ui/form';
 import { scanDispatch } from '@/ai/flows/scan-dispatch-flow';
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 interface GoodsSendingTableProps {
   allOrders: OrderWithItems[];
+}
+
+function AttachmentViewer({ url }: { url?: string }) {
+    const [isOpen, setIsOpen] = React.useState(false);
+    if (!url) return null;
+
+    const isPdf = url.includes('/auto/upload') && url.endsWith('.pdf');
+
+    return (
+        <>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-purple-600" onClick={() => setIsOpen(true)}>
+                            <Eye className="h-4 w-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>View Scanned Slip</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh]">
+                    <DialogHeader>
+                        <DialogTitle>Gate Pass / Slip Attachment</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-auto flex justify-center bg-muted/20 rounded-lg p-2 min-h-[50vh]">
+                        {isPdf ? (
+                            <iframe src={url} className="w-full h-[70vh]" title="Slip PDF" />
+                        ) : (
+                            <img src={url} className="max-w-full h-auto object-contain shadow-lg border" alt="Slip Attachment" />
+                        )}
+                    </div>
+                    <div className="flex justify-end pt-2">
+                        <Button variant="outline" onClick={() => setIsOpen(false)}>Close</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
 }
 
 function PrintGatePass({ item }: { item: any }) {
@@ -180,6 +223,7 @@ function QuickDispatchDialog({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       receivedBySenderDate: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
       quantity: 1,
       recipientName: '',
+      attachmentUrl: '',
     }
   });
 
@@ -200,6 +244,7 @@ function QuickDispatchDialog({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           const data = await response.json();
           if (!response.ok) throw new Error("Upload failed");
 
+          form.setValue('attachmentUrl', data.secure_url);
           setIsScanning(true);
           const result = await scanDispatch({ photoDataUri: data.secure_url });
           
@@ -258,6 +303,22 @@ function QuickDispatchDialog({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {form.watch('attachmentUrl') && (
+                <div className="p-3 border rounded-lg bg-green-50/50 flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded border bg-white overflow-hidden flex items-center justify-center">
+                            {form.watch('attachmentUrl').endsWith('.pdf') ? (
+                                <Paperclip className="h-6 w-6 text-muted-foreground" />
+                            ) : (
+                                <img src={form.watch('attachmentUrl')} className="h-full w-full object-cover" alt="Attachment" />
+                            )}
+                        </div>
+                        <span className="text-sm font-medium text-green-700">Slip/Gate Pass attached for reference.</span>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => form.setValue('attachmentUrl', '')} className="text-destructive">Remove</Button>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <FormField control={form.control} name="partyName" render={({ field }) => (
                 <FormItem><FormLabel className="text-xs font-bold uppercase">Source Department (Workshop/Store)</FormLabel><FormControl><Input placeholder="e.g. Truck Workshop" {...field} /></FormControl><FormMessage /></FormItem>
@@ -523,6 +584,7 @@ export function GoodsSendingTable({ allOrders }: GoodsSendingTableProps) {
         sourceLocation: order.sourceLocation,
         orderDate: order.orderDate,
         pageNo: order.pageNo,
+        attachmentUrl: order.attachmentUrl,
       }))
     );
   }, [allOrders]);
@@ -710,6 +772,7 @@ export function GoodsSendingTable({ allOrders }: GoodsSendingTableProps) {
                       
                       <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
+                              <AttachmentViewer url={item.attachmentUrl} />
                               {item.status === 'dispatched' && <PrintGatePass item={item} />}
                               <Button 
                                 size="sm" 
@@ -742,7 +805,7 @@ export function GoodsSendingTable({ allOrders }: GoodsSendingTableProps) {
                           <p className="text-lg font-bold text-foreground">No dispatch logs found</p>
                           <p className="text-sm text-muted-foreground">Adjust your search or filters to see movements.</p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => { setFilterText(''); setStatusFilter('all'); }}>
+                        <Button variant="outline" size="sm" onClick={() => { setFilterText(''); setStatusFilter('ready'); }}>
                           Show All Items
                         </Button>
                       </div>

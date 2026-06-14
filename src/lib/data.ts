@@ -502,6 +502,7 @@ export const createQuickDispatch = async (data: QuickDispatchSchema): Promise<vo
         orderDate: new Date(data.dispatchedAt),
         status: 'completed',
         totalAmount: 0,
+        attachmentUrl: data.attachmentUrl || null,
         createdAt: serverTimestamp(),
         remark: 'Quick Dispatch Record'
     });

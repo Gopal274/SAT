@@ -113,6 +113,7 @@ export const quickDispatchSchema = z.object({
   recipientName: z.string().optional(),
   dispatchReason: z.enum(['purchased', 'sample', 'repairing', 'exchange', 'return', 'replacement', 'new_stock']).default('purchased'),
   remark: z.string().optional(),
+  attachmentUrl: z.string().optional().or(z.literal("")).describe("URL of the attached gate pass slip"),
 });
 export type QuickDispatchSchema = z.infer<typeof quickDispatchSchema>;
 
