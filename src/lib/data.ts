@@ -20,7 +20,7 @@ import {
 } from 'firebase/firestore';
 
 import { getSdks } from '@/firebase/server';
-import type { Product, Rate, ProductSchema, UpdateProductSchema, ProductWithRates, BatchProductSchema, Order, OrderItem, CreateOrderSchema, OrderWithItems, DeliveryRecord, DispatchDetailsSchema } from './types';
+import type { Product, Rate, ProductSchema, UpdateProductSchema, ProductWithRates, BatchProductSchema, Order, OrderItem, CreateOrderSchema, OrderWithItems, DeliveryRecord, DispatchDetailsSchema, QuickDispatchSchema } from './types';
 
 async function getDb() {
   const { firestore } = getSdks();
@@ -491,4 +491,31 @@ export const updateOrderItemDispatchDetails = async (orderId: string, itemId: st
   if (details.dispatchedAt) updateData.dispatchedAt = new Date(details.dispatchedAt);
 
   await updateDoc(itemRef, updateData);
+};
+
+export const createQuickDispatch = async (data: QuickDispatchSchema): Promise<void> => {
+    const db = await getDb();
+    const orderRef = await addDoc(collection(db, ORDERS_COLLECTION), {
+        partyName: data.partyName,
+        sourceLocation: data.destination,
+        orderDate: new Date(data.dispatchedAt),
+        status: 'completed',
+        totalAmount: 0,
+        createdAt: serverTimestamp(),
+        remark: 'Quick Dispatch Record'
+    });
+
+    const itemRef = await addDoc(collection(orderRef, ORDER_ITEMS_SUBCOLLECTION), {
+        productName: data.productName,
+        quantity: data.quantity,
+        unit: data.unit,
+        status: 'dispatched',
+        receivedQuantity: data.quantity,
+        receivedBySenderDate: new Date(data.receivedBySenderDate),
+        dispatchedAt: new Date(data.dispatchedAt),
+        dispatchedBy: data.dispatchedBy,
+        driverName: data.driverName,
+        dispatchReason: data.dispatchReason,
+        remark: data.remark || ''
+    });
 };

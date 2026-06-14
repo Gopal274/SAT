@@ -99,6 +99,21 @@ export const createOrderSchema = z.object({
 });
 export type CreateOrderSchema = z.infer<typeof createOrderSchema>;
 
+export const quickDispatchSchema = z.object({
+  partyName: z.string().min(1, "Department is required."),
+  destination: z.string().min(1, "Destination is required."),
+  productName: z.string().min(1, "Item name is required."),
+  quantity: z.coerce.number().min(0.01, "Quantity is required."),
+  unit: z.string().min(1, "Unit is required."),
+  receivedBySenderDate: z.string().min(1, "Received date is required."),
+  dispatchedAt: z.string().min(1, "Dispatch date is required."),
+  dispatchedBy: z.string().min(1, "Sender name is required."),
+  driverName: z.string().min(1, "Driver name is required."),
+  dispatchReason: z.enum(['purchased', 'sample', 'repairing', 'exchange', 'return', 'replacement', 'new_stock']).default('purchased'),
+  remark: z.string().optional(),
+});
+export type QuickDispatchSchema = z.infer<typeof quickDispatchSchema>;
+
 export type DeliveryRecord = {
   id: string;
   quantity: number;

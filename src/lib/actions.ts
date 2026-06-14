@@ -19,14 +19,13 @@ import {
   deleteOrder as deleteOrderFromDb,
   logDeliveryRecord as logDeliveryRecordToDb,
   deleteDeliveryRecord as deleteDeliveryRecordFromDb,
+  createQuickDispatch as createQuickDispatchInDb,
 } from './data';
-import type { Rate, UpdateProductSchema, ProductWithRates, BatchProductSchema, CreateOrderSchema, OrderItem, OrderWithItems, DispatchDetailsSchema } from './types';
+import type { Rate, UpdateProductSchema, ProductWithRates, BatchProductSchema, CreateOrderSchema, OrderItem, OrderWithItems, DispatchDetailsSchema, QuickDispatchSchema } from './types';
 import { productSchema } from './types';
 import { z } from 'zod';
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
-
-type ProductFormData = z.infer<typeof productSchema>;
 
 async function handleAction<T>(
   action: () => Promise<T>,
@@ -48,7 +47,7 @@ async function handleAction<T>(
 const mainPaths = ['/', '/dashboard'];
 const orderPaths = ['/orders', '/goods-sending'];
 
-export async function addProductAction(formData: ProductFormData) {
+export async function addProductAction(formData: z.infer<typeof productSchema>) {
   const result = await handleAction(async () => {
     const { product, rate } = await addProductToDb(formData);
     return { product, rate, message: 'Product added successfully.' };
@@ -136,6 +135,11 @@ export async function logDeliveryAction(orderId: string, itemId: string, quantit
 export async function deleteDeliveryRecordAction(orderId: string, itemId: string, logId: string) {
     const result = await handleAction(() => deleteDeliveryRecordFromDb(orderId, itemId, logId), orderPaths);
     return result.success ? { success: true, message: 'Delivery record removed.' } : { success: false, message: result.message };
+}
+
+export async function createQuickDispatchAction(data: QuickDispatchSchema) {
+    const result = await handleAction(() => createQuickDispatchInDb(data), orderPaths);
+    return result.success ? { success: true, message: 'Dispatch movement recorded.' } : { success: false, message: result.message };
 }
 
 export async function getAllOrdersWithItemsAction(): Promise<OrderWithItems[]> {
