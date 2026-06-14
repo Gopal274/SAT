@@ -7,6 +7,7 @@ import React from 'react';
 import { ThemeProvider } from '@/components/theme-provider';
 import Link from 'next/link';
 import { ChatAssistant } from '@/components/chat-assistant';
+import { MobileNav } from '@/components/mobile-nav';
 
 export const metadata: Metadata = {
   title: 'Rate Record & Logistics',
@@ -32,7 +33,7 @@ export const viewport: Viewport = {
 
 function AppFooter() {
   return (
-    <footer className="border-t bg-card/50 no-print">
+    <footer className="border-t bg-card/50 no-print pb-16 md:pb-0">
       <div className="container mx-auto flex h-16 items-center justify-center px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-6 text-sm text-muted-foreground">
           <Link href="/terms" className="transition-colors hover:text-foreground">
@@ -88,10 +89,11 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <FirebaseClientProvider>
-              <div className="flex-grow">
+              <div className="flex-grow pb-16 md:pb-0">
                 {children}
               </div>
               <AppFooter />
+              <MobileNav />
               <Toaster />
               <ChatAssistant />
           </FirebaseClientProvider>

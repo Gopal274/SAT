@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Logo } from './icons';
@@ -58,18 +59,18 @@ function UserNav() {
 export default function AppHeader() {
   const { user } = useUser();
   return (
-    <header className="border-b bg-card">
+    <header className="border-b bg-card sticky top-0 z-40 no-print">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-3">
             <Logo className="h-8 w-8 text-primary" />
             <h1 className="text-xl font-bold tracking-tight text-foreground">
-              Rate Record
+              Trust Store
             </h1>
           </Link>
         </div>
-        <div className="flex items-center gap-4">
-            <nav className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+            <nav className="hidden md:flex items-center gap-4">
                  <Link href="/" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
                     Home
                 </Link>
