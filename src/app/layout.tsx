@@ -1,4 +1,5 @@
-import type {Metadata} from 'next';
+
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from '@/firebase';
@@ -8,9 +9,26 @@ import Link from 'next/link';
 import { ChatAssistant } from '@/components/chat-assistant';
 
 export const metadata: Metadata = {
-  title: 'Rate Record',
-  description: 'A web app to record product rates over time.',
+  title: 'Rate Record & Logistics',
+  description: 'A web app to record product rates and manage Trust logistics.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Trust Store',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
+
+export const viewport: Viewport = {
+  themeColor: '#1e40af',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+}
 
 function AppFooter() {
   return (
