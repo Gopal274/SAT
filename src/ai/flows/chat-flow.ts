@@ -10,20 +10,22 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { getAllProductsWithRates, getAllOrdersWithItems } from '@/lib/data';
 
-// Define tools for the LLM to access the database
+// Optimized tools: request ONLY latest rates to stay within processing limits
 const getProductRatesTool = ai.defineTool(
   {
     name: 'getProductRates',
-    description: 'Retrieves the current rates and price history for products in the Trust database.',
+    description: 'Retrieves current rates for products. Use this to check latest prices.',
     inputSchema: z.object({
       searchQuery: z.string().optional().describe('Optional product name to filter by.'),
     }),
     outputSchema: z.array(z.any()),
   },
   async (input) => {
-    const products = await getAllProductsWithRates();
+    // Optimization: only fetch latest rate for chat context
+    const products = await getAllProductsWithRates({ onlyLatestRate: true });
     if (input.searchQuery) {
-      return products.filter(p => p.name.toLowerCase().includes(input.searchQuery!.toLowerCase()));
+      const search = input.searchQuery.toLowerCase();
+      return products.filter(p => p.name.toLowerCase().includes(search));
     }
     return products;
   }
@@ -32,10 +34,10 @@ const getProductRatesTool = ai.defineTool(
 const getOrdersStatusTool = ai.defineTool(
   {
     name: 'getOrdersStatus',
-    description: 'Retrieves pending demands and delivery status of items for various departments.',
+    description: 'Retrieves status of pending items for departments.',
     inputSchema: z.object({
-      department: z.string().optional().describe('Filter by department name (e.g., Langar, Hospital).'),
-      source: z.string().optional().describe('Filter by source hub (e.g., Indore, Delhi).'),
+      department: z.string().optional().describe('Filter by department name.'),
+      source: z.string().optional().describe('Filter by source hub.'),
     }),
     outputSchema: z.array(z.any()),
   },
@@ -43,10 +45,12 @@ const getOrdersStatusTool = ai.defineTool(
     const orders = await getAllOrdersWithItems();
     let filtered = orders;
     if (input.department) {
-      filtered = filtered.filter(o => o.partyName.toLowerCase().includes(input.department!.toLowerCase()));
+      const dept = input.department.toLowerCase();
+      filtered = filtered.filter(o => o.partyName.toLowerCase().includes(dept));
     }
     if (input.source) {
-      filtered = filtered.filter(o => o.sourceLocation?.toLowerCase().includes(input.source!.toLowerCase()));
+      const src = input.source.toLowerCase();
+      filtered = filtered.filter(o => o.sourceLocation?.toLowerCase().includes(src));
     }
     return filtered;
   }
@@ -71,21 +75,19 @@ const trustChatFlow = ai.defineFlow(
     outputSchema: z.string(),
   },
   async (input) => {
-    let retries = 4;
-    let delay = 1500;
+    let retries = 3;
+    let delay = 1000; // Shorter initial delay to stay within server action limits
 
     while (retries > 0) {
       try {
         const response = await ai.generate({
           system: `You are the Shri Anandpur Trust Store Assistant. 
-          You help management track supplies and product rates.
+          Respond naturally to greetings like "Hi" or "Hello".
           
           RULES:
-          1. Use the provided tools to check LIVE data before answering.
-          2. If asked about pending items, look for items where receivedQuantity < quantity.
-          3. Keep answers professional and respectful.
-          4. If you don't find data for a specific product, mention that it might not be recorded yet.
-          5. Today is ${new Date().toLocaleDateString()}.`,
+          1. Use tools ONLY if the user asks for specific data or reports.
+          2. For greetings, just reply respectfully without checking the database.
+          3. Today is ${new Date().toLocaleDateString()}.`,
           prompt: input.message,
           messages: input.history,
           tools: [getProductRatesTool, getOrdersStatusTool],
@@ -95,8 +97,7 @@ const trustChatFlow = ai.defineFlow(
       } catch (error: any) {
         const isRetryable = error.message?.includes('503') || 
                           error.message?.includes('429') || 
-                          error.message?.includes('overloaded') ||
-                          error.message?.includes('deadline');
+                          error.message?.includes('overloaded');
                           
         if (retries === 1 || !isRetryable) throw error;
         
@@ -105,6 +106,6 @@ const trustChatFlow = ai.defineFlow(
         delay *= 2;
       }
     }
-    return "I am currently experiencing heavy traffic while connecting to the Trust database. Please try again in a few seconds.";
+    return "I am currently experiencing heavy traffic. Please try your request one more time.";
   }
 );

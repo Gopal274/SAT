@@ -1,4 +1,3 @@
-
 'use server';
 
 import { 
@@ -176,11 +175,17 @@ export const deleteRate = async (productId: string, rateId: string): Promise<voi
 export const getAllProductsWithRates = async (options?: { onlyLatestRate: boolean }): Promise<ProductWithRates[]> => {
     const db = await getDb();
     const productsSnapshot = await getDocs(collection(db, PRODUCTS_COLLECTION));
-    const results: ProductWithRates[] = [];
-    for (const pDoc of productsSnapshot.docs) {
+    
+    // Optimized: Fetch all rates in parallel using Promise.all
+    const results = await Promise.all(productsSnapshot.docs.map(async (pDoc) => {
         const rates = await getProductRates(pDoc.id);
-        results.push({ id: pDoc.id, ...pDoc.data() as any, rates: options?.onlyLatestRate ? rates.slice(0, 1) : rates });
-    }
+        return { 
+            id: pDoc.id, 
+            ...pDoc.data() as any, 
+            rates: options?.onlyLatestRate ? rates.slice(0, 1) : rates 
+        } as ProductWithRates;
+    }));
+    
     return results;
 };
 
@@ -239,32 +244,33 @@ export const getOrderItems = async (orderId: string): Promise<OrderItem[]> => {
     const db = await getDb();
     const itemsCol = collection(db, ORDERS_COLLECTION, orderId, ORDER_ITEMS_SUBCOLLECTION);
     const snapshot = await getDocs(itemsCol);
-    const results: OrderItem[] = [];
-    for (const iDoc of snapshot.docs) {
+    
+    // Optimized: Fetch deliveries for all items in parallel
+    const results = await Promise.all(snapshot.docs.map(async (iDoc) => {
         const data = iDoc.data();
         const deliveries = await getDeliveryRecords(orderId, iDoc.id);
         const receivedQuantity = deliveries.reduce((sum, d) => sum + d.quantity, 0);
-        results.push({ id: iDoc.id, ...data, receivedQuantity, deliveries } as any);
-    }
+        return { id: iDoc.id, ...data, receivedQuantity, deliveries } as any;
+    }));
+    
     return results;
 };
 
 export const getAllOrdersWithItems = async (): Promise<OrderWithItems[]> => {
     const db = await getDb();
     const snapshot = await getDocs(collection(db, ORDERS_COLLECTION));
-    const results: OrderWithItems[] = [];
     
-    for (const oDoc of snapshot.docs) {
+    // Optimized: Fetch items for all orders in parallel
+    const results = await Promise.all(snapshot.docs.map(async (oDoc) => {
         const data = oDoc.data();
         const items = await getOrderItems(oDoc.id);
-        // Calculate total amount based on items if not already stored
         const calculatedTotal = items.reduce((sum, item) => {
             const itemRate = item.rate || 0;
             const itemGst = item.gst || 0;
             return sum + (item.quantity * itemRate * (1 + itemGst / 100));
         }, 0);
 
-        results.push({ 
+        return { 
             id: oDoc.id, 
             ...data, 
             totalAmount: data.totalAmount || calculatedTotal,
@@ -272,8 +278,8 @@ export const getAllOrdersWithItems = async (): Promise<OrderWithItems[]> => {
             mailDate: data.mailDate ? toDate(data.mailDate) : undefined,
             createdAt: toDate(data.createdAt), 
             items 
-        } as any);
-    }
+        } as any;
+    }));
 
     return results.sort((a, b) => {
         const dateA = toDate(a.orderDate).getTime();
