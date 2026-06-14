@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Logo } from './icons';
@@ -7,7 +6,7 @@ import { Button } from './ui/button';
 import { signOut } from 'firebase/auth';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
-import { LogOut } from 'lucide-react';
+import { LogOut, PackageSearch } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
 import Link from 'next/link';
 
@@ -79,6 +78,9 @@ export default function AppHeader() {
                 </Link>
                 <Link href="/orders" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
                     Orders
+                </Link>
+                <Link href="/goods-sending" className="text-sm font-medium text-primary flex items-center gap-1.5 transition-colors hover:text-primary/80">
+                    <PackageSearch className="h-4 w-4" /> Goods Sending
                 </Link>
             </nav>
             <ThemeToggle />
