@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { PackageOpen, Clock, Truck, MapPin, History, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { PackageOpen, Clock, Truck, MapPin, History, Sparkles, AlertCircle, CheckCircle2, Wallet } from 'lucide-react';
 import type { OrderWithItems } from '@/lib/types';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -14,6 +14,7 @@ import { Button } from './ui/button';
 import { analyzeSupply, type SupplyAnalysisOutput } from '@/ai/flows/supply-analysis-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from './ui/skeleton';
+import { Badge } from './ui/badge';
 
 interface OrderStatsProps {
   orders: OrderWithItems[];
@@ -24,10 +25,13 @@ export function OrderStats({ orders }: OrderStatsProps) {
   const [aiInsight, setAiInsight] = React.useState<SupplyAnalysisOutput | null>(null);
   const { toast } = useToast();
 
+  const formatCurrency = (val: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val);
+
   const stats = React.useMemo(() => {
     let totalItems = 0;
     let totalReceived = 0;
     let totalPending = 0;
+    let totalFinancialValue = 0;
     
     const sourceStats: Record<string, { pending: number; received: number }> = {};
     const deptStats: Record<string, { pending: number; total: number }> = {};
@@ -43,6 +47,7 @@ export function OrderStats({ orders }: OrderStatsProps) {
     }> = [];
 
     orders.forEach(order => {
+      totalFinancialValue += (order.totalAmount || 0);
       const source = order.sourceLocation || 'Unspecified';
       if (!sourceStats[source]) sourceStats[source] = { pending: 0, received: 0 };
       
@@ -101,6 +106,7 @@ export function OrderStats({ orders }: OrderStatsProps) {
     return {
       totalPending,
       totalReceived,
+      totalFinancialValue,
       percentComplete: totalItems > 0 ? Math.round((totalReceived / totalItems) * 100) : 0,
       sourceChartData,
       recentDeliveries,
@@ -127,6 +133,23 @@ export function OrderStats({ orders }: OrderStatsProps) {
 
   return (
     <div className="space-y-6">
+      {/* Moved Financial Summary Row here */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 rounded-xl bg-primary/5 border border-primary/10">
+          <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase text-primary/60 tracking-wider">Total Active Orders</span>
+              <div className="text-2xl font-black">{orders.length}</div>
+          </div>
+          <div className="flex flex-col gap-1 md:col-span-2">
+              <span className="text-[10px] font-bold uppercase text-primary/60 tracking-wider">Estimated Total Value (Global)</span>
+              <div className="text-2xl font-black text-primary">{formatCurrency(stats.totalFinancialValue)}</div>
+          </div>
+          <div className="flex items-center justify-end">
+              <Badge variant="outline" className="bg-white/50 border-primary/20 text-primary">
+                  <Wallet className="mr-1.5 h-3 w-3" /> Costing Overview
+              </Badge>
+          </div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -242,7 +265,7 @@ export function OrderStats({ orders }: OrderStatsProps) {
                                     </ul>
                                 </div>
                             </div>
-                            <Button variant="ghost" size="xs" onClick={() => setAiInsight(null)} className="text-[10px] text-muted-foreground">
+                            <Button variant="ghost" className="text-[10px] text-muted-foreground h-auto p-0" onClick={() => setAiInsight(null)}>
                                 Reset Analysis
                             </Button>
                         </div>

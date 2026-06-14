@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -10,10 +9,10 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Plus, Trash2, History, Info, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon, Paperclip, Eye, Mail, IndianRupee, Wallet } from 'lucide-react';
+import { Plus, Trash2, History, Filter, X, Edit, Printer, ArrowUpDown, Calendar as CalendarIcon, Paperclip, Mail, IndianRupee, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 
-import type { OrderItem, Product, OrderWithItems, DeliveryRecord } from '@/lib/types';
+import type { OrderItem, Product, OrderWithItems } from '@/lib/types';
 import { updateOrderItemStatusAction, logDeliveryAction, deleteDeliveryRecordAction } from '@/lib/actions';
 
 import { safeToDate, cn } from '@/lib/utils';
@@ -317,10 +316,6 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
     return result;
   }, [allOrders, sourceFilter, deptFilter, statusFilter, globalFilter, sortBy, startDate, endDate]);
 
-  const financialSummary = React.useMemo(() => {
-      return filteredOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-  }, [filteredOrders]);
-
   const columns: ColumnDef<OrderWithItems>[] = React.useMemo(() => [
     { id: 'serialNumber', header: 'S. No.' },
     { accessorKey: 'partyName', header: 'Department' },
@@ -353,7 +348,7 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <CardTitle>Orders & Supply Tracking</CardTitle>
-                    <CardDescription>Manage and track the financial value of Trust demands.</CardDescription>
+                    <CardDescription>Manage and track the fulfillment of Trust demands.</CardDescription>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <MailPendingSummary orders={filteredOrders} source={sourceFilter} />
@@ -365,22 +360,6 @@ export function OrdersTable({ allOrders, allProducts }: { allOrders: OrderWithIt
             </div>
 
             <Separator className="my-4" />
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 mb-4 rounded-xl bg-primary/5 border border-primary/10 no-print">
-                <div className="flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase text-primary/60 tracking-wider">Filtered Orders</span>
-                    <div className="text-2xl font-black">{filteredOrders.length}</div>
-                </div>
-                <div className="flex flex-col gap-1 md:col-span-2">
-                    <span className="text-[10px] font-bold uppercase text-primary/60 tracking-wider">Estimated Total Value (Filtered)</span>
-                    <div className="text-2xl font-black text-primary">{formatCurrency(financialSummary)}</div>
-                </div>
-                <div className="flex items-center justify-end">
-                    <Badge variant="outline" className="bg-white/50 border-primary/20 text-primary">
-                        <Wallet className="mr-1.5 h-3 w-3" /> Costing Active
-                    </Badge>
-                </div>
-            </div>
 
             <div className="space-y-4 no-print">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
