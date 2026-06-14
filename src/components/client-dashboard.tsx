@@ -9,9 +9,10 @@ import { PriceEstimator } from './price-estimator';
 import { QuantityCalculator } from './quantity-calculator';
 import { PartyDistributionChart } from './party-distribution-chart';
 import { OrderStats } from './order-stats';
+import { FinancialReports } from './financial-reports';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { X, TrendingUp, ShoppingBag } from 'lucide-react';
+import { X, TrendingUp, ShoppingBag, Landmark } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -39,6 +40,9 @@ export default function ClientDashboard({
                 <TabsTrigger value="supply" className="gap-2">
                     <ShoppingBag className="h-4 w-4" /> Supply Tracking
                 </TabsTrigger>
+                <TabsTrigger value="finance" className="gap-2">
+                    <Landmark className="h-4 w-4" /> Financial Analytics
+                </TabsTrigger>
                 <TabsTrigger value="rates" className="gap-2">
                     <TrendingUp className="h-4 w-4" /> Price Analysis
                 </TabsTrigger>
@@ -61,6 +65,10 @@ export default function ClientDashboard({
                 </Card>
                 <QuantityCalculator productsWithRates={productsWithRates} />
             </div>
+        </TabsContent>
+
+        <TabsContent value="finance" className="space-y-6">
+            <FinancialReports orders={orders} />
         </TabsContent>
 
         <TabsContent value="rates" className="space-y-6">
